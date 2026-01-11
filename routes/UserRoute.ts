@@ -1,0 +1,199 @@
+import { Router } from "express";
+import express from "express";
+import {
+  registerUser,
+  sendVerificationEmail,
+  verifyOTP,
+  resendOTP,
+  loginUser,
+  getUserData,
+  forgotPassword,
+  updateUsername,
+  changePassword,
+  deleteAccount,
+} from "../controllers/AuthController";
+import {
+  updateProfile,
+  updateProfilePicture,
+  uploadMultipleImages,
+  getUserProfile,
+  updateLocation,
+  updateSettings,
+  updatePreferences,
+} from "../controllers/ProfileController";
+import {
+  getPotentialMatches,
+  swipeAction,
+  getMatches,
+  getAllLikes,
+  getTopPicks,
+} from "../controllers/SwipeController";
+import {
+  sendMessage,
+  sendMessageImage,
+  sendAudio,
+  getMessages,
+  getChatList,
+  deleteMessage,
+  getUserStatus,
+} from "../controllers/MessageController";
+import {
+  getNotifications,
+  getNotificationCount,
+  deleteAllNotifications,
+  deleteNotificationById,
+  deleteNotificationStatus,
+  savePushToken,
+} from "../controllers/NotificationController";
+import { retrieveFile } from "../controllers/FileController";
+import { markNotificationsRead } from "../controllers/HomeController";
+import { submitReport, getReports, getReportsForUser } from "../controllers/ReportController";
+import { getContactMessages, submitContactMessage } from "../controllers/ContactController";
+import {
+  adminDeleteUser,
+  adminListUsers,
+  adminLogin,
+  adminReportsSummary,
+  adminSetUserBlocked,
+  adminStats,
+} from "../controllers/AdminController";
+import { acceptCall, endCall, getActiveCallBetweenUsers, getCallHistory, startCall, generateAgoraToken } from "../controllers/CallController";
+import upload from "../middlewares/upload";
+import { requireAdmin } from "../middlewares/adminAuth";
+
+const UserRoute = Router();
+
+
+// Authentication routes
+UserRoute.post("/register.php", upload.none(), registerUser);
+UserRoute.post("/email/vava.php", upload.none(), sendVerificationEmail);
+UserRoute.post("/email/vava(1).php", upload.none(), forgotPassword);
+// Alias route (more URL-safe than parentheses)
+UserRoute.post("/email/vava1.php", upload.none(), forgotPassword);
+UserRoute.post("/verify.php", upload.none(), verifyOTP);
+UserRoute.post("/resend-otp", upload.none() , resendOTP);
+UserRoute.post("/irene.php", upload.none(), loginUser);
+UserRoute.post("/irene2.php", upload.none(), updateUsername);
+// show.php handles both POST (change password/reset password) and GET (get profile)
+UserRoute.post("/show.php", upload.none(), changePassword);
+UserRoute.get("/show.php", getUserProfile);
+UserRoute.get("/irene.php", (req, res) => {
+  // Handle multiple GET endpoints for irene.php
+  if (req.query.userid) {
+    getUserData(req, res);
+  } else if (req.query.notification) {
+    getNotificationCount(req, res);
+  } else if (req.query.deletestattus) {
+    deleteNotificationStatus(req, res);
+  } else if (req.query.deleteAccount) {
+    deleteAccount(req, res);
+  } else if (req.query.deletemessage) {
+    deleteMessage(req, res);
+  } else if (req.query.deletenotification) {
+    deleteAllNotifications(req, res);
+  } else if (req.query.deletenotificationid) {
+    deleteNotificationById(req, res);
+  } else if (req.query.setStatusssss) {
+    getUserStatus(req, res);
+  } else {
+    res.status(400).json({ message: "Invalid query parameter", status: 0 });
+  }
+});
+
+// Profile routes
+UserRoute.post("/profile.php", upload.none(), updateProfile);
+UserRoute.post("/profilep.php", upload.none(), updateProfilePicture);
+UserRoute.post("/uploadMany.php", uploadMultipleImages);
+UserRoute.post("/verifys.php", upload.none(), (req, res) => {
+  // Handle multiple POST endpoints for verifys.php
+  if (req.body.updatelocation) {
+    updateLocation(req, res);
+  } else if (req.body.lookes || req.body.Orientation || req.body.looking || req.body.date || req.body.interest || req.body.fors || req.body.gender) {
+    updatePreferences(req, res);
+  } else {
+    res.status(400).json(0);
+  }
+});
+UserRoute.get("/more2.php",upload.none(), updateSettings);
+UserRoute.get("/more.php",upload.none(), updateSettings);
+UserRoute.get("/more3.php",upload.none(), updateSettings);
+
+// Swiping/Matching routes
+UserRoute.post("/love.php", upload.none(), getPotentialMatches);
+UserRoute.get("/Allhome.php",upload.none(), getPotentialMatches);
+UserRoute.post("/request.php", upload.none(), swipeAction);
+UserRoute.get("/confirms.php", (req, res) => {
+  if (req.query.matchess) {
+    getMatches(req, res);
+  } else if (req.query.alllist) {
+    getAllLikes(req, res);
+  } else {
+    res.status(400).json({ message: "Invalid query parameter", status: 0 });
+  }
+});
+UserRoute.post("/irenefetch.php", upload.none(), getTopPicks);
+
+// Messaging routes
+UserRoute.post("/sendmess.php", upload.none(), sendMessage);
+UserRoute.post("/sendmessageimage.php", upload.none(), sendMessageImage);
+UserRoute.post("/sendaudio.php", upload.single('audio'), sendAudio);
+UserRoute.post("/getm.php", upload.none(), getMessages);
+UserRoute.post("/messages.php", upload.none(), getChatList);
+
+// Notification routes
+UserRoute.get("/notification.php",upload.none(), getNotifications);
+UserRoute.post("/savetoken.php",upload.none(), savePushToken);
+UserRoute.get("/nubook.php",upload.none(), markNotificationsRead);
+
+// Report routes
+UserRoute.post("/submitreport.php", upload.none(), submitReport);
+UserRoute.get("/getreports.php", upload.none(), getReports);
+UserRoute.get("/userreports.php", upload.none(), getReportsForUser);
+
+// Contact routes
+UserRoute.post("/contact.php", upload.none(), submitContactMessage);
+
+// Admin auth
+UserRoute.post("/admin/login", upload.none(), adminLogin);
+
+// Admin (protected)
+UserRoute.get("/admin/stats", requireAdmin, adminStats);
+UserRoute.get("/admin/users", requireAdmin, adminListUsers);
+UserRoute.patch("/admin/users/:id/block", requireAdmin, adminSetUserBlocked);
+UserRoute.delete("/admin/users/:id", requireAdmin, adminDeleteUser);
+UserRoute.get("/admin/reports/summary", requireAdmin, adminReportsSummary);
+UserRoute.get("/admin/contacts", requireAdmin, getContactMessages);
+
+// Calls + call history
+UserRoute.post("/calls/start", upload.none(), startCall);
+UserRoute.post("/calls/accept", upload.none(), acceptCall);
+UserRoute.post("/calls/end", upload.none(), endCall);
+UserRoute.post("/calls/generate-token", upload.none(), generateAgoraToken);
+UserRoute.get("/calls/active", getActiveCallBetweenUsers);
+UserRoute.get("/calls/history", getCallHistory);
+
+// File retrieval
+// Serve message images
+UserRoute.get("/messageimage/:file", (req, res) => {
+  req.query.folder = "messageimage";
+  retrieveFile(req, res);
+});
+// Serve slider images (matches frontend expectation)
+UserRoute.get("/slider/:file", (req, res) => {
+  req.query.folder = "slider";
+  retrieveFile(req, res);
+});
+// Serve Images folder (profile pictures, etc.)
+UserRoute.get("/Images/:file", (req, res) => {
+  req.query.folder = "Images";
+  retrieveFile(req, res);
+});
+
+// Serve audio files
+UserRoute.get("/audio/:file", (req, res) => {
+  req.query.folder = "audio";
+  retrieveFile(req, res);
+});
+
+export default UserRoute;
+

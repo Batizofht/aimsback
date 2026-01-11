@@ -1,0 +1,44 @@
+export interface UserInterface {
+  id?: number;
+  email: string;
+  phone: string;
+  password: string;
+  f_name?: string;
+  l_name?: string;
+  profile?: string;
+  bio?: string;
+  years?: number;
+  city?: string;
+  country?: string;
+  ages?: number;
+  secondages?: number;
+  distance?: number;
+  gender?: string;
+  looking?: string;
+  fors?: string;
+  Orientation?: string;
+  interest?: string;
+  education?: string;
+  schoolname?: string;
+  im1?: string;
+  im2?: string;
+  im3?: string;
+  im4?: string;
+  lats?: string;
+  longs?: string;
+  globe?: string;
+  toppicks?: string;
+  emailnotification?: string;
+  push?: string;
+  aproved?: string;
+  progress?: number;
+  subs?: string;
+  OTP?: string;
+  OTPExpiry?: Date;
+  IsVerified?: boolean;
+  isBlocked?: boolean;
+  lastActiveAt?: Date;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
