@@ -1,7 +1,7 @@
 export interface UserInterface {
   id?: number;
   email: string;
-  phone: string;
+  phone?: string;
   password: string;
   f_name?: string;
   l_name?: string;
@@ -37,7 +37,9 @@ export interface UserInterface {
   OTPExpiry?: Date;
   IsVerified?: boolean;
   isBlocked?: boolean;
+  signedWithGoogle?: string;
   lastActiveAt?: Date;
+  isManualLocationUpdate?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
 }

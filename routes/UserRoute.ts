@@ -6,11 +6,14 @@ import {
   verifyOTP,
   resendOTP,
   loginUser,
+  googleAuth,
   getUserData,
   forgotPassword,
   updateUsername,
   changePassword,
   deleteAccount,
+  updateSubscriptionStatus,
+  updateManualLocationStatus,
 } from "../controllers/AuthController";
 import {
   updateProfile,
@@ -57,9 +60,22 @@ import {
   adminSetUserBlocked,
   adminStats,
 } from "../controllers/AdminController";
+import {
+  adminAutosaveBlog,
+  adminCreateBlog,
+  adminDeleteBlog,
+  adminGetBlog,
+  adminListBlogs,
+  adminUploadBlogCover,
+  adminUpdateBlog,
+  getPublicBlogBySlug,
+  incrementBlogView,
+  listPublicBlogs,
+} from "../controllers/BlogController";
 import { acceptCall, endCall, getActiveCallBetweenUsers, getCallHistory, startCall, generateAgoraToken } from "../controllers/CallController";
 import upload from "../middlewares/upload";
 import { requireAdmin } from "../middlewares/adminAuth";
+import blogCoverUpload from "../middlewares/blogCoverUpload";
 
 const UserRoute = Router();
 
@@ -73,6 +89,7 @@ UserRoute.post("/email/vava1.php", upload.none(), forgotPassword);
 UserRoute.post("/verify.php", upload.none(), verifyOTP);
 UserRoute.post("/resend-otp", upload.none() , resendOTP);
 UserRoute.post("/irene.php", upload.none(), loginUser);
+UserRoute.post("/google-auth", upload.none(), googleAuth);
 UserRoute.post("/irene2.php", upload.none(), updateUsername);
 // show.php handles both POST (change password/reset password) and GET (get profile)
 UserRoute.post("/show.php", upload.none(), changePassword);
@@ -100,10 +117,12 @@ UserRoute.get("/irene.php", (req, res) => {
   }
 });
 
+
 // Profile routes
 UserRoute.post("/profile.php", upload.none(), updateProfile);
 UserRoute.post("/profilep.php", upload.none(), updateProfilePicture);
 UserRoute.post("/uploadMany.php", uploadMultipleImages);
+UserRoute.post("/gender.php", upload.none(), updatePreferences);
 UserRoute.post("/verifys.php", upload.none(), (req, res) => {
   // Handle multiple POST endpoints for verifys.php
   if (req.body.updatelocation) {
@@ -163,6 +182,18 @@ UserRoute.patch("/admin/users/:id/block", requireAdmin, adminSetUserBlocked);
 UserRoute.delete("/admin/users/:id", requireAdmin, adminDeleteUser);
 UserRoute.get("/admin/reports/summary", requireAdmin, adminReportsSummary);
 UserRoute.get("/admin/contacts", requireAdmin, getContactMessages);
+UserRoute.get("/admin/blogs", requireAdmin, adminListBlogs);
+UserRoute.get("/admin/blogs/:id", requireAdmin, adminGetBlog);
+UserRoute.post("/admin/blogs", requireAdmin, upload.none(), adminCreateBlog);
+UserRoute.put("/admin/blogs/:id", requireAdmin, upload.none(), adminUpdateBlog);
+UserRoute.patch("/admin/blogs/:id/autosave", requireAdmin, upload.none(), adminAutosaveBlog);
+UserRoute.post("/admin/blogs/upload-cover", requireAdmin, blogCoverUpload.single('coverImage'), adminUploadBlogCover);
+UserRoute.delete("/admin/blogs/:id", requireAdmin, adminDeleteBlog);
+
+// Public blogs
+UserRoute.get("/blogs", listPublicBlogs);
+UserRoute.get("/blogs/:slug", getPublicBlogBySlug);
+UserRoute.post("/blogs/:slug/view", upload.none(), incrementBlogView);
 
 // Calls + call history
 UserRoute.post("/calls/start", upload.none(), startCall);
@@ -171,6 +202,10 @@ UserRoute.post("/calls/end", upload.none(), endCall);
 UserRoute.post("/calls/generate-token", upload.none(), generateAgoraToken);
 UserRoute.get("/calls/active", getActiveCallBetweenUsers);
 UserRoute.get("/calls/history", getCallHistory);
+
+// Subscription and premium features
+UserRoute.post("/api/update-subscription", upload.none(), updateSubscriptionStatus);
+UserRoute.post("/api/manual-location-status", upload.none(), updateManualLocationStatus);
 
 // File retrieval
 // Serve message images

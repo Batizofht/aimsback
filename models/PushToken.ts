@@ -41,6 +41,13 @@ const PushToken = meintoyouapp.define<PushTokenInt>(
     updatedAt: true,
     tableName: "push_tokens",
     timestamps: true,
+    indexes: [
+      {
+        unique: true,
+        fields: ['user_id', 'token'],
+        name: 'unique_user_token'
+      }
+    ]
   }
 );
 

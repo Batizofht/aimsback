@@ -132,7 +132,7 @@ export const verifyOTP = async (req: Request, res: Response) => {
 
     await user.update({
       IsVerified: true,
-      OTP: null,
+      OTP: null as any,
       OTPExpiry: undefined,
     });
 
@@ -222,6 +222,67 @@ export const loginUser = async (req: Request, res: Response) => {
   }
 };
 
+// Google Auth (login or create user)
+export const googleAuth = async (req: Request, res: Response) => {
+  try {
+    const { email, idToken, name } = req.body;
+
+    if (!email || !idToken) {
+      res.status(400).json({ message: "Email and token are required", status: 0 });
+      return;
+    }
+
+    const existingUser = await User.findOne({ where: { email } });
+    if (existingUser) {
+      if ((existingUser as any).isBlocked) {
+        res.status(403).json({ message: "Account blocked", status: 0 });
+        return;
+      }
+
+      await existingUser.update({ signedWithGoogle: 'YES' } as any);
+
+      const requiresOnboarding = existingUser.aproved !== 'YES';
+      res.status(200).json({
+        userId: existingUser.id,
+        status: 1,
+        isNewUser: false,
+        requiresOnboarding,
+      });
+      return;
+    }
+
+    // Create a new account for Google users with no phone requirement
+    const randomPassword = Math.random().toString(36).slice(-12);
+    const hashedPassword = await bcrypt.hash(randomPassword, 10);
+
+    const safeName = typeof name === 'string' ? name.trim() : '';
+    const [firstName = '', ...restNames] = safeName.split(' ');
+    const lastName = restNames.join(' ').trim();
+
+    const created = await User.create({
+      email,
+      phone: null,
+      password: hashedPassword,
+      f_name: firstName || undefined,
+      l_name: lastName || undefined,
+      IsVerified: true,
+      aproved: 'NO',
+      signedWithGoogle: 'YES',
+      progress: 0,
+    } as any);
+
+    res.status(200).json({
+      userId: created.id,
+      status: 1,
+      isNewUser: true,
+      requiresOnboarding: true,
+    });
+  } catch (error: any) {
+    console.error("Google auth error:", error);
+    res.status(500).json({ message: "Server error", status: 0 });
+  }
+};
+
 // Get User Data
 export const getUserData = async (req: Request, res: Response) => {
   try {
@@ -244,10 +305,7 @@ export const getUserData = async (req: Request, res: Response) => {
       return;
     }
 
-    const userData = user.toJSON();
-    delete userData.password;
-    delete userData.OTP;
-    delete userData.OTPExpiry;
+    const { password, OTP, OTPExpiry, ...userData } = user.toJSON();
 
     res.status(200).json(userData);
   } catch (error: any) {
@@ -287,14 +345,13 @@ export const forgotPassword = async (req: Request, res: Response) => {
       OTPExpiry: resetExpiry,
     });
 
-    const resetLink = `${process.env.FRONTEND_URL || 'https://meintoyou.netlify.app'}/reset-password?token=${resetToken}&email=${email}`;
-    const emailSent = await sendPasswordResetEmail(user.email, resetLink);
+    const emailSent = await sendPasswordResetEmail(user.email, resetToken);
 
     if (emailSent) {
-      console.log('forgotPassword email sent:', { email });
+      console.log('forgotPassword OTP sent:', { email });
       res.status(200).json(user.id);
     } else {
-      console.log('forgotPassword failed to send email:', { email });
+      console.log('forgotPassword failed to send OTP:', { email });
       res.status(500).json(0);
     }
   } catch (error: any) {
@@ -419,6 +476,64 @@ export const deleteAccount = async (req: Request, res: Response) => {
     res.status(200).json({ message: "Account deleted successfully", status: 1 });
   } catch (error: any) {
     console.error("Delete account error:", error);
+    res.status(500).json({ message: "Server error", status: 0 });
+  }
+};
+
+// Update Subscription Status
+export const updateSubscriptionStatus = async (req: Request, res: Response) => {
+  try {
+    const { userId, subscription } = req.body;
+
+    if (!userId || !subscription) {
+      res.status(400).json({ message: "User ID and subscription type are required", status: 0 });
+      return;
+    }
+
+    const user = await User.findByPk(Number(userId));
+    if (!user) {
+      res.status(404).json({ message: "User not found", status: 0 });
+      return;
+    }
+
+    await user.update({ subs: subscription });
+    
+    res.status(200).json({ 
+      message: "Subscription updated successfully", 
+      status: 1,
+      subscription 
+    });
+  } catch (error: any) {
+    console.error("Update subscription error:", error);
+    res.status(500).json({ message: "Server error", status: 0 });
+  }
+};
+
+// Update Manual Location Status
+export const updateManualLocationStatus = async (req: Request, res: Response) => {
+  try {
+    const { userId, isManualLocationUpdate } = req.body;
+
+    if (!userId || typeof isManualLocationUpdate !== 'boolean') {
+      res.status(400).json({ message: "User ID and manual location status are required", status: 0 });
+      return;
+    }
+
+    const user = await User.findByPk(Number(userId));
+    if (!user) {
+      res.status(404).json({ message: "User not found", status: 0 });
+      return;
+    }
+
+    await user.update({ isManualLocationUpdate });
+    
+    res.status(200).json({ 
+      message: "Manual location status updated successfully", 
+      status: 1,
+      isManualLocationUpdate 
+    });
+  } catch (error: any) {
+    console.error("Update manual location status error:", error);
     res.status(500).json({ message: "Server error", status: 0 });
   }
 };

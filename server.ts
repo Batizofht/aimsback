@@ -5,7 +5,7 @@ import meintoyouapp from "./config/config";
 import { defineAssociations } from "./models/associations";
 // Import all models to ensure they are registered
 import "./models/index";
-import { Notification } from "./models/index";
+import { ContactMessage, Notification, User } from "./models/index";
 import { seedAdminIfNeeded } from "./utils/seedAdmin";
 
 const server = http.createServer(app);
@@ -20,6 +20,7 @@ meintoyouapp.authenticate().then(async () => {
     // Sync database - Sequelize will handle dependency order automatically
     // First try to sync without alter (creates tables if they don't exist)
     try {
+        await ContactMessage.sync({alter:true})
         await meintoyouapp.sync({ force: false });
         console.log("Database models synchronized successfully");
         await Notification.sync({alter:true})

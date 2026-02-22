@@ -369,6 +369,9 @@ export const updatePreferences = async (req: Request, res: Response) => {
     if (gender) {
       // Gender selection (my gender)
       updateData.gender = gender;
+    } else if (lookes) {
+      // Gender preference (who I want to see)
+      updateData.looking = lookes;
     } else if (Orientation) {
       // Sexual orientation
       updateData.Orientation = Orientation;

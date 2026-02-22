@@ -155,19 +155,13 @@ export const savePushToken = async (req: Request, res: Response) => {
 
     const PushToken = (await import("../models/PushToken")).default;
 
-    // Check if token already exists
-    const existingToken = await PushToken.findOne({
-      where: { user_id: user, token: token },
-    });
-
-    if (existingToken) {
-      res.status(200).json({ message: "Token already exists", status: 1 });
-      return;
-    }
-
-    await PushToken.create({
+    // Use upsert to either create or update the token
+    await PushToken.upsert({
       user_id: user,
       token: token,
+    }, {
+      conflictKeys: ['user_id', 'token'],
+      updateFields: ['updatedAt']
     });
 
     res.status(200).json({ message: "Token saved", status: 1 });

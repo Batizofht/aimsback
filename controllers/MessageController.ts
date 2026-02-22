@@ -28,8 +28,13 @@ export const sendMessage = async (req: Request, res: Response) => {
 
     // Send push notification
     const receiver = await User.findByPk(rec);
+    console.log('🔔 Push check for user', rec, {
+      hasReceiver: !!receiver,
+      pushEnabled: receiver?.push,
+      pushValue: receiver?.push,
+    });
     if (receiver && receiver.push === 'true') {
-      await sendPushNotification(rec, name || "New Message", message.substring(0, 50));
+      await sendPushNotification(Number(rec), name || "New Message", message.substring(0, 50));
     }
 
     res.status(200).json({ message: "Message sent", status: 1, messageId: newMessage.id });
@@ -86,7 +91,7 @@ export const sendMessageImage = async (req: Request, res: Response) => {
     const receiver = await User.findByPk(too);
     if (receiver && receiver.push === "true") {
       await sendPushNotification(
-        too,
+        Number(too),
         name || "New Message",
         "Sent you an image"
       );
@@ -368,7 +373,7 @@ export const sendAudio = async (req: Request, res: Response) => {
     // Send push notification
     const receiver = await User.findByPk(rec);
     if (receiver && receiver.push === 'true') {
-      await sendPushNotification(rec, name || "New Message", "Sent you a voice message");
+      await sendPushNotification(Number(rec), name || "New Message", "Sent you a voice message");
     }
 
     res.status(200).json({ message: "Audio sent", status: 1, messageId: newMessage.id });

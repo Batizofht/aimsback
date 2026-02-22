@@ -474,10 +474,10 @@ export const swipeAction = async (req: Request, res: Response) => {
 
           // Send push notifications
           if (user2.push === 'true') {
-            await sendPushNotification(rec, "New Match", `You matched with ${user1.f_name || user1.email}!`);
+            await sendPushNotification(Number(rec), "New Match", `You matched with ${user1.f_name || user1.email}!`);
           }
           if (user1.push === 'true') {
-            await sendPushNotification(user, "New Match", `You matched with ${user2.f_name || user2.email}!`);
+            await sendPushNotification(Number(user), "New Match", `You matched with ${user2.f_name || user2.email}!`);
           }
         }
       } else {
@@ -495,7 +495,9 @@ export const swipeAction = async (req: Request, res: Response) => {
             is_read: false,
           });
 
-          await sendPushNotification(rec, "New Like", `${liker.f_name || liker.email} liked you!`);
+          if (liked.push === 'true') {
+            await sendPushNotification(Number(rec), "New Like", `${liker.f_name || liker.email} liked you!`);
+          }
         }
       }
     }

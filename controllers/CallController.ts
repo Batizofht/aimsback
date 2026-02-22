@@ -68,7 +68,7 @@ export const startCall = async (req: Request, res: Response) => {
       }
     }
     if (callee.push === 'true') {
-      await sendPushNotification(callee_id, 'Incoming call', `${caller.f_name || 'Someone'} is calling you`, {
+      await sendPushNotification(Number(callee_id), 'Incoming call', `${caller.f_name || 'Someone'} is calling you`, {
         type: 'incoming_call',
         callId: String(callId),
         callType,

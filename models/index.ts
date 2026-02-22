@@ -7,6 +7,7 @@ import ContactMessage from "./ContactMessage";
 import Admin from "./Admin";
 import AdminSession from "./AdminSession";
 import CallLog from "./CallLog";
+import Blog from "./Blog";
 
-export { User, Match, Message, Notification, PushToken, ContactMessage, Admin, AdminSession, CallLog };
+export { User, Match, Message, Notification, PushToken, ContactMessage, Admin, AdminSession, CallLog, Blog };
 

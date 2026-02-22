@@ -34,17 +34,19 @@ export const sendOTPEmail = async (email: string, otp: string) => {
   }
 };
 
-export const sendPasswordResetEmail = async (email: string, resetLink: string) => {
+export const sendPasswordResetEmail = async (email: string, otp: string) => {
   try {
     const mailOptions = {
       from: "meintoyouapp@gmail.com",
       to: email,
-      subject: "MeIntoYou - Password Reset",
+      subject: "MeIntoYou - Password Reset OTP",
       html: `
         <h2>Password Reset Request</h2>
-        <p>Click the link below to reset your password:</p>
-        <a href="${resetLink}">${resetLink}</a>
-        <p>This link will expire in 1 hour.</p>
+        <p>Your OTP code is:</p>
+        <div style="font-size: 32px; font-weight: bold; color: #800080; letter-spacing: 4px; margin: 20px 0;">
+          ${otp}
+        </div>
+        <p>This code will expire in 10 minutes.</p>
       `,
     };
 

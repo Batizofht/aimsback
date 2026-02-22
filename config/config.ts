@@ -16,6 +16,8 @@ export const meintoyouapp = new Sequelize('postgresql://postgres.jbdmaoohlspxdlp
 
 
 
+
+
 /* ================================ HERE IS THE CONFIG ONCE YOU ARE USING REAL PGADMIN OR VPS CONFIG ============== */
 
 // export const meintoyouapp = new Sequelize({

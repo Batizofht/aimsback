@@ -5,7 +5,7 @@ import { UserInterface } from "../interfaces/UserInterface";
 class UserInt extends Model<UserInterface> implements UserInterface {
   id!: number;
   email!: string;
-  phone!: string;
+  phone?: string;
   password!: string;
   f_name?: string;
   l_name?: string;
@@ -41,7 +41,9 @@ class UserInt extends Model<UserInterface> implements UserInterface {
   OTPExpiry?: Date;
   IsVerified?: boolean;
   isBlocked?: boolean;
+  signedWithGoogle?: string;
   lastActiveAt?: Date;
+  isManualLocationUpdate?: boolean;
 }
 
 const User = meintoyouapp.define<UserInt, UserInterface>(
@@ -59,7 +61,7 @@ const User = meintoyouapp.define<UserInt, UserInterface>(
     },
     phone: {
       type: DataTypes.STRING(20),
-      allowNull: false,
+      allowNull: true,
       unique: true,
     },
     password: {
@@ -213,9 +215,18 @@ const User = meintoyouapp.define<UserInt, UserInterface>(
       allowNull: false,
       defaultValue: false,
     },
+    signedWithGoogle: {
+      type: DataTypes.STRING(10),
+      allowNull: true,
+      defaultValue: "NO",
+    },
     lastActiveAt: {
       type: DataTypes.DATE,
       allowNull: true,
+    },
+    isManualLocationUpdate: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
     },
   },
   {
