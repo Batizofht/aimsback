@@ -52,6 +52,7 @@ export const registerUser = async (req: Request, res: Response) => {
       OTP: otp,
       OTPExpiry: otpExpiry,
       IsVerified: false,
+      signedWithGoogle: 'NO',
     });
 
     res.status(200).json(user.id);
@@ -239,8 +240,16 @@ export const googleAuth = async (req: Request, res: Response) => {
         return;
       }
 
-      await existingUser.update({ signedWithGoogle: 'YES' } as any);
+      // Check if user was created manually (not with Google)
+      if ((existingUser as any).signedWithGoogle === 'NO') {
+        res.status(400).json({ 
+          message: "There is already a user with this email that signed up manually. Please use your credentials to sign in.", 
+          status: 0 
+        });
+        return;
+      }
 
+      // User was created with Google, allow sign in
       const requiresOnboarding = existingUser.aproved !== 'YES';
       res.status(200).json({
         userId: existingUser.id,
