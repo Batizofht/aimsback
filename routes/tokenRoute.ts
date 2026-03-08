@@ -4,9 +4,9 @@ import { RtcTokenBuilder, RtcRole } from 'agora-token';
 
 const router = Router();
 
-// Agora credentials - update these with your actual values
-const AGORA_APP_ID = 'b578cdd65d1043bb8411225ee626ee59'; // From VideoCallScreen.js
-const AGORA_APP_CERTIFICATE = process.env.AGORA_APP_CERTIFICATE || ''; // Set in .env
+// Agora credentials - hardcoded for production
+const AGORA_APP_ID = 'b578cdd65d1043bb8411225ee626ee59';
+const AGORA_APP_CERTIFICATE = '27a4d0193c9b4c7ab124e36baf83403f';
 
 /**
  * Generate Agora RTC token
