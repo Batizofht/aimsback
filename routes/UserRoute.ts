@@ -40,6 +40,7 @@ import {
   deleteMessage,
   getUserStatus,
 } from "../controllers/MessageController";
+import { updateStatus } from "../controllers/StatusController";
 import {
   getNotifications,
   getNotificationCount,
@@ -110,6 +111,9 @@ UserRoute.get("/irene.php", (req, res) => {
     deleteAllNotifications(req, res);
   } else if (req.query.deletenotificationid) {
     deleteNotificationById(req, res);
+  } else if (req.query.status) {
+    // set user status to online/offline
+    setStatus(req, res);
   } else if (req.query.setStatusssss) {
     getUserStatus(req, res);
   } else {

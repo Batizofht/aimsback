@@ -22,7 +22,10 @@ export const touchLastActive = (req: Request, _res: Response, next: NextFunction
 
     if (id) {
       void User.update(
-        { lastActiveAt: new Date() } as any,
+        { 
+          lastActiveAt: new Date(),
+          status: 'Active'
+        } as any,
         {
           where: { id },
         }

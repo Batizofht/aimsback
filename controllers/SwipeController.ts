@@ -385,6 +385,7 @@ export const getPotentialMatches = async (req: Request, res: Response) => {
         distance: m.computedDistance !== Infinity 
           ? Number(m.computedDistance.toFixed(2)) 
           : null,
+        status: m.status,
         // Remove temporary fields
         computedDistance: undefined,
         computedAge: undefined,
@@ -529,7 +530,7 @@ export const getMatches = async (req: Request, res: Response) => {
       include: [{
         model: User,
         as: 'matchedUser',
-        attributes: ['id', 'f_name', 'l_name', 'profile', 'years', 'city', 'country'],
+        attributes: ['id', 'f_name', 'l_name', 'profile', 'years', 'city', 'country', 'status'],
         required: false,
       }],
     });
@@ -554,7 +555,7 @@ export const getMatches = async (req: Request, res: Response) => {
           if (matchData.OTPExpiry) delete matchData.OTPExpiry;
           mutualMatches.push({
             ...matchData,
-            available: 'Active', // You can add online status logic here
+            available: matchData.status,
           });
         }
       }
@@ -871,6 +872,7 @@ export const getTopPicks = async (req: Request, res: Response) => {
         distance: data.computedDistance !== Infinity 
           ? Number(data.computedDistance.toFixed(2)) 
           : null,
+        status: data.status,
         score: data._score ? Number(data._score.toFixed(4)) : undefined,
         // Remove temporary fields
         computedDistance: undefined,

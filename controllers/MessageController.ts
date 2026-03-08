@@ -277,7 +277,7 @@ export const getChatList = async (req: Request, res: Response) => {
         f_name: chatUser.f_name,
         l_name: chatUser.l_name,
         profile: chatUser.profile,
-        status: 'Active', // You can add online status logic here
+        status: chatUser.status,
         last_message: lastMessageText,
       });
     }
@@ -338,9 +338,8 @@ export const getUserStatus = async (req: Request, res: Response) => {
       return;
     }
 
-    // You can implement online status logic here
-    // For now, return Active
-    res.status(200).json("Active");
+    const user = await User.findByPk(userId, { attributes: ["status"] });
+    res.status(200).json(user?.status || "Offline");
   } catch (error: any) {
     console.error("Get user status error:", error);
     res.status(500).json({ message: "Server error", status: 0 });

@@ -224,6 +224,11 @@ const User = meintoyouapp.define<UserInt, UserInterface>(
       type: DataTypes.DATE,
       allowNull: true,
     },
+    status: {
+      type: DataTypes.ENUM('Active', 'Offline'),
+      allowNull: false,
+      defaultValue: 'Offline',
+    },
     isManualLocationUpdate: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
