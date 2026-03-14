@@ -40,7 +40,7 @@ import {
   deleteMessage,
   getUserStatus,
 } from "../controllers/MessageController";
-import { updateStatus } from "../controllers/StatusController";
+import { setStatus } from "../controllers/StatusController";
 import {
   getNotifications,
   getNotificationCount,
@@ -60,6 +60,9 @@ import {
   adminReportsSummary,
   adminSetUserBlocked,
   adminStats,
+  adminUserGrowth,
+  adminWarnReportedUser,
+  adminBlockReportedUser,
 } from "../controllers/AdminController";
 import {
   adminAutosaveBlog,
@@ -185,6 +188,9 @@ UserRoute.get("/admin/users", requireAdmin, adminListUsers);
 UserRoute.patch("/admin/users/:id/block", requireAdmin, adminSetUserBlocked);
 UserRoute.delete("/admin/users/:id", requireAdmin, adminDeleteUser);
 UserRoute.get("/admin/reports/summary", requireAdmin, adminReportsSummary);
+UserRoute.post("/admin/reports/:id/warn", requireAdmin, upload.none(), adminWarnReportedUser);
+UserRoute.post("/admin/reports/:id/block", requireAdmin, upload.none(), adminBlockReportedUser);
+UserRoute.get("/admin/user-growth", requireAdmin, adminUserGrowth);
 UserRoute.get("/admin/contacts", requireAdmin, getContactMessages);
 UserRoute.get("/admin/blogs", requireAdmin, adminListBlogs);
 UserRoute.get("/admin/blogs/:id", requireAdmin, adminGetBlog);

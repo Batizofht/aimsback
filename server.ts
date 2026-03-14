@@ -43,6 +43,14 @@ meintoyouapp.authenticate().then(async () => {
     // Define model associations
     defineAssociations();
     
+    // Ensure strikes column exists before sync
+    try {
+        await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS strikes INTEGER DEFAULT 0;');
+        console.log("Strikes column ensured");
+    } catch (alterError) {
+        console.error("Error adding strikes column:", alterError);
+    }
+    
     // Sync database - Sequelize will handle dependency order automatically
     // First try to sync without alter (creates tables if they don't exist)
     try {
@@ -72,7 +80,7 @@ meintoyouapp.authenticate().then(async () => {
             console.error("Database update error:", syncErr.message);
             // Mark all users as offline even on sync error
             try {
-                await User.update({ status: 'offline' }, { where: {} });
+                await User.update({ status: 'Offline' }, { where: {} });
                 console.log("All users marked as offline after sync error");
             } catch (userError) {
                 console.error("Error marking users offline:", userError);

@@ -41,6 +41,7 @@ class UserInt extends Model<UserInterface> implements UserInterface {
   OTPExpiry?: Date;
   IsVerified?: boolean;
   isBlocked?: boolean;
+  strikes?: number;
   signedWithGoogle?: string;
   lastActiveAt?: Date;
   isManualLocationUpdate?: boolean;
@@ -214,6 +215,11 @@ const User = meintoyouapp.define<UserInt, UserInterface>(
       type: DataTypes.BOOLEAN,
       allowNull: false,
       defaultValue: false,
+    },
+    strikes: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
     },
     signedWithGoogle: {
       type: DataTypes.STRING(10),

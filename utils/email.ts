@@ -34,6 +34,51 @@ export const sendOTPEmail = async (email: string, otp: string) => {
   }
 };
 
+export const sendWarningEmail = async (email: string, strikes: number, reason: string) => {
+  try {
+    const mailOptions = {
+      from: "meintoyouapp@gmail.com",
+      to: email,
+      subject: "MeIntoYou - Account Warning",
+      html: `
+        <h2>Account Warning</h2>
+        <p>We received a report regarding your account.</p>
+        <p><strong>Reason:</strong> ${reason}</p>
+        <p><strong>Strike:</strong> ${strikes} / 3</p>
+        <p>If this behavior continues, your account may be blocked.</p>
+      `,
+    };
+
+    await transporter.sendMail(mailOptions);
+    return true;
+  } catch (error) {
+    console.error("Email sending error:", error);
+    return false;
+  }
+};
+
+export const sendBlockedEmail = async (email: string, reason: string) => {
+  try {
+    const mailOptions = {
+      from: "meintoyouapp@gmail.com",
+      to: email,
+      subject: "MeIntoYou - Account Blocked",
+      html: `
+        <h2>Account Blocked</h2>
+        <p>Your account has been blocked due to repeated violations.</p>
+        <p><strong>Reason:</strong> ${reason}</p>
+        <p>If you believe this is a mistake, please contact our support team at <strong>support.mentoyou@proton.me</strong>.</p>
+      `,
+    };
+
+    await transporter.sendMail(mailOptions);
+    return true;
+  } catch (error) {
+    console.error("Email sending error:", error);
+    return false;
+  }
+};
+
 export const sendPasswordResetEmail = async (email: string, otp: string) => {
   try {
     const mailOptions = {

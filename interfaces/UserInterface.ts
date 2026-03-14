@@ -37,8 +37,10 @@ export interface UserInterface {
   OTPExpiry?: Date;
   IsVerified?: boolean;
   isBlocked?: boolean;
+  strikes?: number;
   signedWithGoogle?: string;
   lastActiveAt?: Date;
+  status?: 'Active' | 'Offline';
   isManualLocationUpdate?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
