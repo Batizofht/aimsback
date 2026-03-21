@@ -37,11 +37,21 @@ export interface UserInterface {
   OTPExpiry?: Date;
   IsVerified?: boolean;
   isBlocked?: boolean;
+    newmessage?:boolean;
+  newlikes?:boolean;
   strikes?: number;
   signedWithGoogle?: string;
   lastActiveAt?: Date;
   status?: 'Active' | 'Offline';
   isManualLocationUpdate?: boolean;
+  verificationStatus?: 'unverified' | 'pending' | 'verified' | 'rejected';
+  verificationDocType?: string;
+  verificationDocFront?: string;
+  verificationDocBack?: string;
+  verificationVideo?: string;
+  verificationSubmittedAt?: Date;
+  verificationReviewedAt?: Date;
+  verificationRejectionReason?: string;
   createdAt?: Date;
   updatedAt?: Date;
 }

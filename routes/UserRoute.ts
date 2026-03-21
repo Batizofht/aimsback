@@ -30,6 +30,7 @@ import {
   getMatches,
   getAllLikes,
   getTopPicks,
+  resetNewLikes,
 } from "../controllers/SwipeController";
 import {
   sendMessage,
@@ -39,6 +40,7 @@ import {
   getChatList,
   deleteMessage,
   getUserStatus,
+  resetNewMessage,
 } from "../controllers/MessageController";
 import { setStatus } from "../controllers/StatusController";
 import {
@@ -80,6 +82,12 @@ import { acceptCall, endCall, getActiveCallBetweenUsers, getCallHistory, startCa
 import upload from "../middlewares/upload";
 import { requireAdmin } from "../middlewares/adminAuth";
 import blogCoverUpload from "../middlewares/blogCoverUpload";
+import {
+  adminListVerification,
+  adminReviewVerification,
+  getMyVerificationStatus,
+  submitVerification,
+} from "../controllers/VerificationController";
 
 const UserRoute = Router();
 
@@ -158,6 +166,7 @@ UserRoute.get("/confirms.php", (req, res) => {
   }
 });
 UserRoute.post("/irenefetch.php", upload.none(), getTopPicks);
+UserRoute.post("/resetnewlikes.php", upload.none(), resetNewLikes);
 
 // Messaging routes
 UserRoute.post("/sendmess.php", upload.none(), sendMessage);
@@ -165,6 +174,7 @@ UserRoute.post("/sendmessageimage.php", upload.none(), sendMessageImage);
 UserRoute.post("/sendaudio.php", upload.single('audio'), sendAudio);
 UserRoute.post("/getm.php", upload.none(), getMessages);
 UserRoute.post("/messages.php", upload.none(), getChatList);
+UserRoute.post("/resetnewmessage.php", upload.none(), resetNewMessage);
 
 // Notification routes
 UserRoute.get("/notification.php",upload.none(), getNotifications);
@@ -217,6 +227,22 @@ UserRoute.get("/calls/history", getCallHistory);
 UserRoute.post("/api/update-subscription", upload.none(), updateSubscriptionStatus);
 UserRoute.post("/api/manual-location-status", upload.none(), updateManualLocationStatus);
 
+// Verification (user)
+UserRoute.post(
+  "/verification/submit",
+  upload.fields([
+    { name: 'verificationDocFront', maxCount: 1 },
+    { name: 'verificationDocBack', maxCount: 1 },
+    { name: 'verificationVideo', maxCount: 1 },
+  ]),
+  submitVerification
+);
+UserRoute.get("/verification/status", getMyVerificationStatus);
+
+// Verification (admin)
+UserRoute.get("/admin/verification", requireAdmin, adminListVerification);
+UserRoute.post("/admin/verification/:id/review", requireAdmin, upload.none(), adminReviewVerification);
+
 // File retrieval
 // Serve message images
 UserRoute.get("/messageimage/:file", (req, res) => {
@@ -237,6 +263,12 @@ UserRoute.get("/Images/:file", (req, res) => {
 // Serve audio files
 UserRoute.get("/audio/:file", (req, res) => {
   req.query.folder = "audio";
+  retrieveFile(req, res);
+});
+
+// Serve verification uploads
+UserRoute.get("/verification/:file", (req, res) => {
+  req.query.folder = "verification";
   retrieveFile(req, res);
 });
 

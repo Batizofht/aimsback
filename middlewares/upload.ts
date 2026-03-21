@@ -17,6 +17,15 @@ const storage = multer.diskStorage({
     // Profile images
     if (file.fieldname === "profileImage") folder = "uploads/Images";
 
+    // Verification uploads (ID images + sample video)
+    if (
+      file.fieldname === "verificationDocFront" ||
+      file.fieldname === "verificationDocBack" ||
+      file.fieldname === "verificationVideo"
+    ) {
+      folder = "uploads/verification";
+    }
+
     // Ensure folder exists
     fs.mkdirSync(folder, { recursive: true });
     cb(null, folder);
@@ -30,15 +39,15 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage,
   fileFilter: (req, file, cb) => {
-    // Allow images, PDFs and common audio types
-    const allowed = /jpeg|png|jpg|webp|gif|pdf|mp3|m4a|wav|webp|ogg|mpeg|aac/;
+    // Allow images, PDFs, common audio types, and common video types
+    const allowed = /jpeg|png|jpg|webp|gif|pdf|mp3|m4a|wav|webp|ogg|mpeg|aac|mp4|mov|m4v|3gp|webm/;
     const extname = allowed.test(path.extname(file.originalname).toLowerCase());
     const mimetype = allowed.test(file.mimetype);
 
     if (extname || mimetype) {
       cb(null, true);
     } else {
-      cb(new Error("Invalid file type. Only images, audio and PDFs are allowed."));
+      cb(new Error("Invalid file type. Only images, audio, video and PDFs are allowed."));
     }
   },
   limits: {

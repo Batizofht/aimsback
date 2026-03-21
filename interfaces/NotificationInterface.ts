@@ -8,5 +8,12 @@ export interface NotificationInterface {
   datesent?: Date;
   createdAt?: Date;
   updatedAt?: Date;
+  sender?: {
+    id?: number;
+    f_name?: string;
+    l_name?: string;
+    profile?: string;
+    verificationStatus?: 'unverified' | 'pending' | 'verified' | 'rejected';
+  };
 }
 

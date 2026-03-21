@@ -23,6 +23,8 @@ class UserInt extends Model<UserInterface> implements UserInterface {
   Orientation?: string;
   interest?: string;
   education?: string;
+  newmessage?:boolean;
+  newlikes?:boolean;
   schoolname?: string;
   im1?: string;
   im2?: string;
@@ -45,6 +47,15 @@ class UserInt extends Model<UserInterface> implements UserInterface {
   signedWithGoogle?: string;
   lastActiveAt?: Date;
   isManualLocationUpdate?: boolean;
+
+  verificationStatus?: 'unverified' | 'pending' | 'verified' | 'rejected';
+  verificationDocType?: string;
+  verificationDocFront?: string;
+  verificationDocBack?: string;
+  verificationVideo?: string;
+  verificationSubmittedAt?: Date;
+  verificationReviewedAt?: Date;
+  verificationRejectionReason?: string;
 }
 
 const User = meintoyouapp.define<UserInt, UserInterface>(
@@ -236,6 +247,48 @@ const User = meintoyouapp.define<UserInt, UserInterface>(
       defaultValue: 'Offline',
     },
     isManualLocationUpdate: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+    },
+
+    verificationStatus: {
+      type: DataTypes.ENUM('unverified', 'pending', 'verified', 'rejected'),
+      allowNull: false,
+      defaultValue: 'unverified',
+    },
+    verificationDocType: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+    },
+    verificationDocFront: {
+      type: DataTypes.STRING(500),
+      allowNull: true,
+    },
+    verificationDocBack: {
+      type: DataTypes.STRING(500),
+      allowNull: true,
+    },
+    verificationVideo: {
+      type: DataTypes.STRING(500),
+      allowNull: true,
+    },
+    verificationSubmittedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    verificationReviewedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    verificationRejectionReason: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    newmessage: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+    },
+    newlikes: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
     },

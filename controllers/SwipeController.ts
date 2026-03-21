@@ -486,6 +486,11 @@ export const swipeAction = async (req: Request, res: Response) => {
         const liker = await User.findByPk(user);
         const liked = await User.findByPk(rec);
 
+        // Set newlikes flag for the liked user
+        if (liked) {
+          await liked.update({ newlikes: true });
+        }
+
         if (liker && liked && liked.push === 'true') {
           await Notification.create({
             user_id: rec,
@@ -589,7 +594,7 @@ export const getAllLikes = async (req: Request, res: Response) => {
 
     // Filter out users who are already matched (mutual likes)
     // Only show NEW likes - people who liked you but you haven't liked back yet
-    const newLikesData = [];
+    const newlikesData = [];
     for (const like of likes) {
       // Check if current user has also liked this person back (mutual match)
       const reverseMatch = await Match.findOne({
@@ -608,12 +613,12 @@ export const getAllLikes = async (req: Request, res: Response) => {
           if (data.password) delete data.password;
           if (data.OTP) delete data.OTP;
           if (data.OTPExpiry) delete data.OTPExpiry;
-          newLikesData.push(data);
+          newlikesData.push(data);
         }
       }
     }
 
-    res.status(200).json(newLikesData);
+    res.status(200).json(newlikesData);
   } catch (error: any) {
     console.error("Get all likes error:", error);
     res.status(500).json({ message: "Server error", status: 0 });
@@ -891,5 +896,27 @@ export const getTopPicks = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error("Get top picks error:", error);
     res.status(500).json({ message: "Server error", status: 0, error: error.message });
+  }
+};
+
+// Reset newlikes flag
+export const resetNewLikes = async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.body;
+
+    if (!userId) {
+      res.status(400).json({ message: "User ID is required", status: 0 });
+      return;
+    }
+
+    const user = await User.findByPk(userId);
+    if (user) {
+      await user.update({ newlikes: false });
+    }
+
+    res.status(200).json({ message: "New likes flag reset", status: 1 });
+  } catch (error: any) {
+    console.error("Reset newlikes error:", error);
+    res.status(500).json({ message: "Server error", status: 0 });
   }
 };

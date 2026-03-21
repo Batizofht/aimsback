@@ -19,7 +19,7 @@ export const getNotifications = async (req: Request, res: Response) => {
       include: [{
         model: User,
         as: 'sender',
-        attributes: ['id', 'f_name', 'l_name', 'profile'],
+        attributes: ['id', 'f_name', 'l_name', 'profile', 'verificationStatus'],
         required: false,
       }],
       order: [['createdAt', 'DESC']],
@@ -37,7 +37,8 @@ export const getNotifications = async (req: Request, res: Response) => {
         fname: data.sender?.f_name,
         sname: data.sender?.l_name,
         imageuser: data.sender?.profile,
-        is_read: data.is_read || false, // Default to false if column doesn't exist
+        verificationStatus: data.sender?.verificationStatus,
+        is_read: data.is_read || false,
       };
     });
 

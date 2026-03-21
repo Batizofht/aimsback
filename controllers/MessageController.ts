@@ -19,7 +19,7 @@ export const sendMessage = async (req: Request, res: Response) => {
       return;
     }
 
-    const newMessage = await Message.create({
+    const newmessage = await Message.create({
       sender_id: user,
       receiver_id: rec,
       message: message,
@@ -37,7 +37,12 @@ export const sendMessage = async (req: Request, res: Response) => {
       await sendPushNotification(Number(rec), name || "New Message", message.substring(0, 50));
     }
 
-    res.status(200).json({ message: "Message sent", status: 1, messageId: newMessage.id });
+    // Set newmessage flag for receiver
+    if (receiver) {
+      await receiver.update({ newmessage: true });
+    }
+
+    res.status(200).json({ message: "Message sent", status: 1, messageId: newmessage.id });
   } catch (error: any) {
     console.error("Send message error:", error);
     res.status(500).json({ message: "Server error", status: 0 });
@@ -80,7 +85,7 @@ export const sendMessageImage = async (req: Request, res: Response) => {
     fs.unlinkSync(tempPath);
 
     // 5️⃣ Create message
-    const newMessage = await Message.create({
+    const newmessage = await Message.create({
       sender_id: user,
       receiver_id: too,
       message: finalFilename,
@@ -100,7 +105,7 @@ export const sendMessageImage = async (req: Request, res: Response) => {
     res.status(200).json({
       message: "Image sent",
       status: 1,
-      messageId: newMessage.id
+      messageId: newmessage.id
     });
 
   } catch (error: any) {
@@ -278,6 +283,7 @@ export const getChatList = async (req: Request, res: Response) => {
         l_name: chatUser.l_name,
         profile: chatUser.profile,
         status: chatUser.status,
+        verificationStatus: chatUser.verificationStatus,
         last_message: lastMessageText,
       });
     }
@@ -362,7 +368,7 @@ export const sendAudio = async (req: Request, res: Response) => {
 
     const filename = file.filename;
 
-    const newMessage = await Message.create({
+    const newmessage = await Message.create({
       sender_id: Number(user),
       receiver_id: Number(rec),
       message: filename,
@@ -375,9 +381,31 @@ export const sendAudio = async (req: Request, res: Response) => {
       await sendPushNotification(Number(rec), name || "New Message", "Sent you a voice message");
     }
 
-    res.status(200).json({ message: "Audio sent", status: 1, messageId: newMessage.id });
+    res.status(200).json({ message: "Audio sent", status: 1, messageId: newmessage.id });
   } catch (error: any) {
     console.error("Send audio error:", error);
+    res.status(500).json({ message: "Server error", status: 0 });
+  }
+};
+
+// Reset newmessage flag
+export const resetNewMessage = async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.body;
+
+    if (!userId) {
+      res.status(400).json({ message: "User ID is required", status: 0 });
+      return;
+    }
+
+    const user = await User.findByPk(userId);
+    if (user) {
+      await user.update({ newmessage: false });
+    }
+
+    res.status(200).json({ message: "New message flag reset", status: 1 });
+  } catch (error: any) {
+    console.error("Reset newmessage error:", error);
     res.status(500).json({ message: "Server error", status: 0 });
   }
 };
