@@ -6,7 +6,7 @@ class MatchInt extends Model<MatchInterface> implements MatchInterface {
   id!: number;
   user_id!: number;
   matched_user_id!: number;
-  status!: 'like' | 'pass' | 'super_like';
+  status!: 'like' | 'pass' | 'super_like' | 'flag';
 }
 
 const Match = meintoyouapp.define<MatchInt>(
@@ -34,7 +34,7 @@ const Match = meintoyouapp.define<MatchInt>(
       },
     },
     status: {
-      type: DataTypes.ENUM('like', 'pass', 'super_like'),
+      type: DataTypes.ENUM('like', 'pass', 'super_like', 'flag'),
       allowNull: false,
     },
   },

@@ -398,7 +398,6 @@ export const getPotentialMatches = async (req: Request, res: Response) => {
         interestOverlap: undefined,
       };
     });
-
     console.log('[PotentialMatches] Returning:', finalMatches.length, 'matches');
     res.status(200).json(finalMatches);
 
@@ -407,23 +406,72 @@ export const getPotentialMatches = async (req: Request, res: Response) => {
     res.status(500).json({ message: "Server error", status: 0, error: error.message });
   }
 };
-// Swipe Action (Like/Pass)
+
+// Swipe Action (Like/Pass/Flag)
 export const swipeAction = async (req: Request, res: Response) => {
   try {
-    const { user, rec, direction, date } = req.body;
+    const { user, rec, direction } = req.body;
+    let matchPayload: any = null;
 
     if (!user || !rec || !direction) {
       res.status(400).json({ message: "User, rec, and direction are required", status: 0 });
       return;
     }
 
+    if (direction === 'flag_status') {
+      const flagRecord = await Match.findOne({
+        where: {
+          user_id: user,
+          matched_user_id: rec,
+          status: 'flag',
+        },
+      });
+
+      res.status(200).json({ status: 1, isFlagged: !!flagRecord });
+      return;
+    }
+
+    if (direction === 'unflag') {
+      const deletedCount = await Match.destroy({
+        where: {
+          user_id: user,
+          matched_user_id: rec,
+          status: 'flag',
+        },
+      });
+
+      res.status(200).json({ status: 1, message: 'Flag removed', deletedCount });
+      return;
+    }
+
+    if (direction === 'flag') {
+      const existingFlag = await Match.findOne({
+        where: {
+          user_id: user,
+          matched_user_id: rec,
+          status: 'flag',
+        },
+      });
+
+      if (!existingFlag) {
+        await Match.create({
+          user_id: user,
+          matched_user_id: rec,
+          status: 'flag',
+        });
+      }
+
+      res.status(200).json({ status: 1, message: 'User flagged' });
+      return;
+    }
+
     const status = direction === 'right' ? 'like' : 'pass';
 
-    // Check if match already exists
     const existingMatch = await Match.findOne({
       where: {
         user_id: user,
         matched_user_id: rec,
+        status: { [Op.in]: ['like', 'pass', 'super_like'] },
       },
     });
 
@@ -433,11 +481,10 @@ export const swipeAction = async (req: Request, res: Response) => {
       await Match.create({
         user_id: user,
         matched_user_id: rec,
-        status: status,
+        status,
       });
     }
 
-    // If it's a like, check for mutual match
     if (status === 'like') {
       const mutualMatch = await Match.findOne({
         where: {
@@ -448,12 +495,25 @@ export const swipeAction = async (req: Request, res: Response) => {
       });
 
       if (mutualMatch) {
-        // Create notification for both users
         const user1 = await User.findByPk(user);
         const user2 = await User.findByPk(rec);
 
         if (user1 && user2) {
-          // Notify user 2
+          matchPayload = {
+            currentUser: {
+              id: user1.id,
+              f_name: user1.f_name,
+              l_name: user1.l_name,
+              profile: user1.profile,
+            },
+            matchedUser: {
+              id: user2.id,
+              f_name: user2.f_name,
+              l_name: user2.l_name,
+              profile: user2.profile,
+            },
+          };
+
           await Notification.create({
             user_id: rec,
             sender_id: user,
@@ -463,7 +523,6 @@ export const swipeAction = async (req: Request, res: Response) => {
             is_read: false,
           });
 
-          // Notify user 1
           await Notification.create({
             user_id: user,
             sender_id: rec,
@@ -473,7 +532,6 @@ export const swipeAction = async (req: Request, res: Response) => {
             is_read: false,
           });
 
-          // Send push notifications
           if (user2.push === 'true') {
             await sendPushNotification(Number(rec), "New Match", `You matched with ${user1.f_name || user1.email}!`);
           }
@@ -482,11 +540,9 @@ export const swipeAction = async (req: Request, res: Response) => {
           }
         }
       } else {
-        // Just a like, notify the liked user
         const liker = await User.findByPk(user);
         const liked = await User.findByPk(rec);
 
-        // Set newlikes flag for the liked user
         if (liked) {
           await liked.update({ newlikes: true });
         }
@@ -508,7 +564,7 @@ export const swipeAction = async (req: Request, res: Response) => {
       }
     }
 
-    res.status(200).json({ message: "Swipe recorded", status: 1 });
+    res.status(200).json({ message: "Swipe recorded", status: 1, matched: !!matchPayload, match: matchPayload });
   } catch (error: any) {
     console.error("Swipe action error:", error);
     res.status(500).json({ message: "Server error", status: 0 });
@@ -526,7 +582,6 @@ export const getMatches = async (req: Request, res: Response) => {
       return;
     }
 
-    // Get all mutual matches
     const matches = await Match.findAll({
       where: {
         user_id: userId,
@@ -540,9 +595,20 @@ export const getMatches = async (req: Request, res: Response) => {
       }],
     });
 
-    // Filter for mutual matches
     const mutualMatches = [];
     for (const match of matches) {
+      const flaggedRecord = await Match.findOne({
+        where: {
+          user_id: userId,
+          matched_user_id: match.matched_user_id,
+          status: 'flag',
+        },
+      });
+
+      if (flaggedRecord) {
+        continue;
+      }
+
       const reverseMatch = await Match.findOne({
         where: {
           user_id: match.matched_user_id,
@@ -584,7 +650,6 @@ export const getAllLikes = async (req: Request, res: Response) => {
       return;
     }
 
-    // Get all users who liked this user
     const likes = await Match.findAll({
       where: {
         matched_user_id: userId,
@@ -592,11 +657,20 @@ export const getAllLikes = async (req: Request, res: Response) => {
       },
     });
 
-    // Filter out users who are already matched (mutual likes)
-    // Only show NEW likes - people who liked you but you haven't liked back yet
     const newlikesData = [];
     for (const like of likes) {
-      // Check if current user has also liked this person back (mutual match)
+      const flaggedRecord = await Match.findOne({
+        where: {
+          user_id: userId,
+          matched_user_id: like.user_id,
+          status: 'flag',
+        },
+      });
+
+      if (flaggedRecord) {
+        continue;
+      }
+
       const reverseMatch = await Match.findOne({
         where: {
           user_id: userId,
@@ -605,7 +679,6 @@ export const getAllLikes = async (req: Request, res: Response) => {
         },
       });
 
-      // Only include if NOT a mutual match (new like only)
       if (!reverseMatch) {
         const user = await User.findByPk(like.user_id);
         if (user) {

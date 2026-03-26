@@ -9,6 +9,20 @@ import path from "path";
 import fs from "fs";
 import { moderateImage } from "../utils/imageModeration";
 
+const isChatBlockedByFlag = async (userA: number, userB: number) => {
+  const flagRecord = await Match.findOne({
+    where: {
+      status: 'flag',
+      [Op.or]: [
+        { user_id: userA, matched_user_id: userB },
+        { user_id: userB, matched_user_id: userA },
+      ],
+    },
+  });
+
+  return !!flagRecord;
+};
+
 // Send Message
 export const sendMessage = async (req: Request, res: Response) => {
   try {
@@ -19,9 +33,18 @@ export const sendMessage = async (req: Request, res: Response) => {
       return;
     }
 
+    const senderId = Number(user);
+    const receiverId = Number(rec);
+    const isBlocked = await isChatBlockedByFlag(senderId, receiverId);
+
+    if (isBlocked) {
+      res.status(403).json({ message: "Chat is unavailable", status: 0, blocked: true });
+      return;
+    }
+
     const newmessage = await Message.create({
-      sender_id: user,
-      receiver_id: rec,
+      sender_id: senderId,
+      receiver_id: receiverId,
       message: message,
       date: date ? new Date(date) : new Date(),
     });
@@ -61,6 +84,18 @@ export const sendMessageImage = async (req: Request, res: Response) => {
       });
     }
 
+    const senderId = Number(user);
+    const receiverId = Number(too);
+    const isBlocked = await isChatBlockedByFlag(senderId, receiverId);
+
+    if (isBlocked) {
+      return res.status(403).json({
+        message: "Chat is unavailable",
+        status: 0,
+        blocked: true
+      });
+    }
+
     // 1️⃣ Save TEMP image
     const tempFilename = saveBase64Image(image, "temp", "msg-temp.jpg");
     const tempPath = path.join("uploads/temp", tempFilename);
@@ -86,8 +121,8 @@ export const sendMessageImage = async (req: Request, res: Response) => {
 
     // 5️⃣ Create message
     const newmessage = await Message.create({
-      sender_id: user,
-      receiver_id: too,
+      sender_id: senderId,
+      receiver_id: receiverId,
       message: finalFilename,
       date: date ? new Date(date) : new Date(),
     });
@@ -124,11 +159,15 @@ export const getMessages = async (req: Request, res: Response) => {
       return;
     }
 
+    const senderId = Number(sender);
+    const userId = Number(user);
+    const isBlocked = await isChatBlockedByFlag(senderId, userId);
+
     const messages = await Message.findAll({
       where: {
         [Op.or]: [
-          { sender_id: sender, receiver_id: user },
-          { sender_id: user, receiver_id: sender },
+          { sender_id: senderId, receiver_id: userId },
+          { sender_id: userId, receiver_id: senderId },
         ],
       },
       include: [
@@ -193,6 +232,11 @@ export const getMessages = async (req: Request, res: Response) => {
         profile: data.sender?.profile,
       };
     });
+
+    if (isBlocked) {
+      res.status(200).json({ blocked: true, messages: messagesData });
+      return;
+    }
 
     res.status(200).json(messagesData);
   } catch (error: any) {
@@ -366,11 +410,20 @@ export const sendAudio = async (req: Request, res: Response) => {
       return;
     }
 
+    const senderId = Number(user);
+    const receiverId = Number(rec);
+    const isBlocked = await isChatBlockedByFlag(senderId, receiverId);
+
+    if (isBlocked) {
+      res.status(403).json({ message: "Chat is unavailable", status: 0, blocked: true });
+      return;
+    }
+
     const filename = file.filename;
 
     const newmessage = await Message.create({
-      sender_id: Number(user),
-      receiver_id: Number(rec),
+      sender_id: senderId,
+      receiver_id: receiverId,
       message: filename,
       date: date ? new Date(date) : new Date(),
     });
