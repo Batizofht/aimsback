@@ -170,6 +170,7 @@ export const getPotentialMatches = async (req: Request, res: Response) => {
       aproved: 'YES',
       IsVerified: true,
       isBlocked: false,
+      tester: false, // Exclude test accounts from matching
     };
 
     // MANDATORY: Gender filter (wanttosee) - this is the ONLY hard filter
@@ -748,6 +749,7 @@ export const getTopPicks = async (req: Request, res: Response) => {
       aproved: 'YES',
       IsVerified: true,
       isBlocked: false,
+      tester: false, // Exclude test accounts from matching
     };
 
     // MANDATORY: Gender filter (wanttosee)
@@ -1023,6 +1025,7 @@ export const filteredExplore = async (req: Request, res: Response) => {
       aproved: 'YES',
       IsVerified: true,
       isBlocked: false,
+      tester: false, // Exclude test accounts from matching
     };
 
     // MANDATORY: Gender filter (wanttosee)

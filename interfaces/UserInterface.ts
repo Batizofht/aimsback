@@ -56,6 +56,7 @@ export interface UserInterface {
   isBlocked?: boolean;
     newmessage?:boolean;
   newlikes?:boolean;
+  tester?: boolean;
   strikes?: number;
   signedWithGoogle?: string;
   lastActiveAt?: Date;

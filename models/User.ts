@@ -25,6 +25,7 @@ class UserInt extends Model<UserInterface> implements UserInterface {
   education?: string;
   newmessage?:boolean;
   newlikes?:boolean;
+  tester?: boolean;
   schoolname?: string;
   // More about you (optional)
   height_cm?: number;
@@ -379,6 +380,10 @@ const User = meintoyouapp.define<UserInt, UserInterface>(
       defaultValue: false,
     },
     newlikes: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+    },
+    tester: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
     },

@@ -45,7 +45,7 @@ meintoyouapp.authenticate().then(async () => {
     
     // Step 1: Sync all tables first (creates them if they don't exist)
     try {
-        await meintoyouapp.sync({ force: false, alter: false });
+        await meintoyouapp.sync({ force: false, alter: true });
         console.log("Database models synchronized successfully");
     } catch (syncError) {
         console.error("Database sync error:", syncError);
