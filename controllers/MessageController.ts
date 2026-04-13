@@ -149,10 +149,13 @@ export const sendMessageImage = async (req: Request, res: Response) => {
   }
 };
 
+// In-memory store for typing status (ephemeral, perfect for single-server polling)
+const typingStatuses = new Map<string, number>();
+
 // Get Messages
 export const getMessages = async (req: Request, res: Response) => {
   try {
-    const { sender, user } = req.body;
+    const { sender, user, page, limit, isTyping } = req.body;
 
     if (!sender || !user) {
       res.status(400).json({ message: "Sender and user are required", status: 0 });
@@ -161,9 +164,26 @@ export const getMessages = async (req: Request, res: Response) => {
 
     const senderId = Number(sender);
     const userId = Number(user);
+    
+    // Update typing status for current user -> sender
+    const typingKey = `${userId}_${senderId}`;
+    if (isTyping === 'true' || isTyping === true) {
+      typingStatuses.set(typingKey, Date.now());
+    } else {
+      typingStatuses.delete(typingKey);
+    }
+    
+    // Check if peer (sender) is typing to us (user)
+    const peerTypingKey = `${senderId}_${userId}`;
+    const peerLastTypingAt = typingStatuses.get(peerTypingKey);
+    const peerIsTyping = peerLastTypingAt ? (Date.now() - peerLastTypingAt < 4000) : false; // 4 seconds timeout
+
     const isBlocked = await isChatBlockedByFlag(senderId, userId);
 
-    const messages = await Message.findAll({
+    const pageNum = page ? Number(page) : 1;
+    const limitNum = limit ? Number(limit) : 15; // default limit 15 as requested
+    
+    const queryOptions: any = {
       where: {
         [Op.or]: [
           { sender_id: senderId, receiver_id: userId },
@@ -178,67 +198,37 @@ export const getMessages = async (req: Request, res: Response) => {
           required: false,
         },
       ],
-      order: [['createdAt', 'ASC']],
-    });
+      order: [['createdAt', 'DESC']], // Fetch newest first to get correct slice
+    };
+
+    if (limitNum > 0) {
+      queryOptions.limit = limitNum;
+      queryOptions.offset = (pageNum - 1) * limitNum;
+    }
+
+    let messages = await Message.findAll(queryOptions);
+    messages = messages.reverse(); // Reverse so older messages are at the top, making it chronological ASC
 
     const messagesData = messages.map(msg => {
       const data = msg.toJSON();
-      // Ensure date is always in ISO format for consistent parsing
+      // Fast timestamp extraction
       let messageDate = data.date || data.createdAt;
-      
-      if (messageDate instanceof Date) {
-        messageDate = messageDate.toISOString();
-      } else if (typeof messageDate === 'string') {
-        // Handle PostgreSQL timestamp format: "2025-12-24 11:58:33.698+00"
-        // or ISO format, or custom format
-        try {
-          // If it's already ISO format (contains 'T'), use as is
-          if (messageDate.includes('T')) {
-            // Already ISO format
-          } else if (messageDate.includes('+') || messageDate.match(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/)) {
-            // PostgreSQL timestamp format: "2025-12-24 11:58:33.698+00"
-            // Replace space with T and ensure proper format
-            let cleaned = messageDate.replace(' ', 'T');
-            // Remove timezone offset if present (moment will handle it)
-            cleaned = cleaned.replace(/\+00(:00)?$/, '');
-            const parsedDate = new Date(cleaned);
-            if (!isNaN(parsedDate.getTime())) {
-              messageDate = parsedDate.toISOString();
-            } else {
-              // Try parsing with moment-like format
-              messageDate = cleaned + 'Z';
-            }
-          } else {
-            // Try to parse as custom format or regular date
-            const parsedDate = new Date(messageDate);
-            if (!isNaN(parsedDate.getTime())) {
-              messageDate = parsedDate.toISOString();
-            }
-          }
-        } catch (e) {
-          // If parsing fails, use createdAt as fallback
-          messageDate = data.createdAt ? (data.createdAt instanceof Date ? data.createdAt.toISOString() : data.createdAt) : new Date().toISOString();
-        }
-      } else if (!messageDate) {
-        // If no date, use createdAt or current time
-        messageDate = data.createdAt ? (data.createdAt instanceof Date ? data.createdAt.toISOString() : data.createdAt) : new Date().toISOString();
-      }
       
       return {
         msg_id: data.id,
         msg: data.message,
-        date: messageDate,
+        date: messageDate, // Keep original date format, the client will parse it
         incoming_msg_id: data.sender_id,
-        profile: data.sender?.profile,
+        profile: (data as any).sender?.profile,
       };
     });
 
     if (isBlocked) {
-      res.status(200).json({ blocked: true, messages: messagesData });
+      res.status(200).json({ blocked: true, messages: messagesData, peerIsTyping: false });
       return;
     }
 
-    res.status(200).json(messagesData);
+    res.status(200).json({ messages: messagesData, peerIsTyping });
   } catch (error: any) {
     console.error("Get messages error:", error);
     res.status(500).json({ message: "Server error", status: 0 });
@@ -326,7 +316,7 @@ export const getChatList = async (req: Request, res: Response) => {
         f_name: chatUser.f_name,
         l_name: chatUser.l_name,
         profile: chatUser.profile,
-        status: chatUser.status,
+        status: (chatUser as any).status,
         verificationStatus: chatUser.verificationStatus,
         last_message: lastMessageText,
       });
@@ -389,7 +379,7 @@ export const getUserStatus = async (req: Request, res: Response) => {
     }
 
     const user = await User.findByPk(userId, { attributes: ["status"] });
-    res.status(200).json(user?.status || "Offline");
+    res.status(200).json((user as any)?.status || "Offline");
   } catch (error: any) {
     console.error("Get user status error:", error);
     res.status(500).json({ message: "Server error", status: 0 });

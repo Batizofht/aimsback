@@ -1,4 +1,5 @@
 import { Request, Response } from 'express'
+import { Op } from 'sequelize'
 import ContactMessage from '../models/ContactMessage'
 
 export const submitContactMessage = async (req: Request, res: Response) => {
@@ -37,6 +38,30 @@ export const getContactMessages = async (req: Request, res: Response) => {
     res.status(200).json(rows)
   } catch (error: any) {
     console.error('Get contact messages error:', error)
+    res.status(500).json({ status: 0, message: 'Server error' })
+  }
+}
+
+export const deleteContactMessages = async (req: Request, res: Response) => {
+  try {
+    const { ids } = req.body
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      res.status(400).json({ status: 0, message: 'No IDs provided' })
+      return
+    }
+
+    const deleted = await ContactMessage.destroy({
+      where: {
+        id: {
+          [Op.in]: ids
+        }
+      }
+    })
+
+    res.status(200).json({ status: 1, deleted, message: `${deleted} message(s) deleted` })
+  } catch (error: any) {
+    console.error('Delete contact messages error:', error)
     res.status(500).json({ status: 0, message: 'Server error' })
   }
 }

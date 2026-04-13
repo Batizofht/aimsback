@@ -30,6 +30,7 @@ import {
   getMatches,
   getAllLikes,
   getTopPicks,
+  filteredExplore,
   resetNewLikes,
 } from "../controllers/SwipeController";
 import {
@@ -54,7 +55,7 @@ import {
 import { retrieveFile } from "../controllers/FileController";
 import { markNotificationsRead } from "../controllers/HomeController";
 import { submitReport, getReports, getReportsForUser } from "../controllers/ReportController";
-import { getContactMessages, submitContactMessage } from "../controllers/ContactController";
+import { getContactMessages, submitContactMessage, deleteContactMessages } from '../controllers/ContactController';
 import {
   adminDeleteUser,
   adminListUsers,
@@ -166,6 +167,7 @@ UserRoute.get("/confirms.php", (req, res) => {
   }
 });
 UserRoute.post("/irenefetch.php", upload.none(), getTopPicks);
+UserRoute.post("/filteredExplore.php", upload.none(), filteredExplore);
 UserRoute.post("/resetnewlikes.php", upload.none(), resetNewLikes);
 
 // Messaging routes
@@ -202,6 +204,7 @@ UserRoute.post("/admin/reports/:id/warn", requireAdmin, upload.none(), adminWarn
 UserRoute.post("/admin/reports/:id/block", requireAdmin, upload.none(), adminBlockReportedUser);
 UserRoute.get("/admin/user-growth", requireAdmin, adminUserGrowth);
 UserRoute.get("/admin/contacts", requireAdmin, getContactMessages);
+UserRoute.post("/admin/contacts/delete", requireAdmin, upload.none(), deleteContactMessages);
 UserRoute.get("/admin/blogs", requireAdmin, adminListBlogs);
 UserRoute.get("/admin/blogs/:id", requireAdmin, adminGetBlog);
 UserRoute.post("/admin/blogs", requireAdmin, upload.none(), adminCreateBlog);

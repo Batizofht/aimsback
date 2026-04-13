@@ -972,6 +972,285 @@ export const getTopPicks = async (req: Request, res: Response) => {
   }
 };
 
+
+// Get Top Picks
+export const filteredExplore = async (req: Request, res: Response) => {
+  try {
+    const { 
+      owner, 
+      user, 
+      email, 
+      from,        // Min age preference
+      to,          // Max age preference
+      wanttosee,   // Gender preference
+      interest, 
+      distance, 
+      fors, 
+      Orientation, 
+      country,     // Country preference
+      city 
+    } = req.body;
+    
+    // Use 'owner' if provided, otherwise fall back to 'user'
+    const userId = owner || user;
+
+    console.log('[TopPicks] Request params:', {
+      userId, email, from, to, wanttosee, interest, distance, fors, Orientation, country, city
+    });
+
+    if (!userId) {
+      res.status(400).json({ message: "User ID is required", status: 0 });
+      return;
+    }
+
+    const currentUser = await User.findByPk(userId);
+    if (!currentUser) {
+      res.status(404).json({ message: "User not found", status: 0 });
+      return;
+    }
+
+    // Get users that current user has already swiped on
+    const swipedUsers = await Match.findAll({
+      where: { user_id: userId },
+      attributes: ['matched_user_id'],
+    });
+    const swipedUserIds = swipedUsers.map(m => m.matched_user_id);
+
+    // ===== STEP 1: BASE CONDITIONS =====
+    // Only apply gender as mandatory filter
+    const baseConditions: any = {
+      id: { [Op.and]: [{ [Op.ne]: userId }, { [Op.notIn]: swipedUserIds }] },
+      aproved: 'YES',
+      IsVerified: true,
+      isBlocked: false,
+    };
+
+    // MANDATORY: Gender filter (wanttosee)
+    if (!wanttosee) {
+      res.status(400).json({ message: "wanttosee (gender preference) is required", status: 0 });
+      return;
+    }
+    baseConditions.gender = wanttosee;
+
+    const selectedFors = typeof fors === 'string' ? fors.trim() : '';
+    if (selectedFors && toTrimmedLower(selectedFors) !== 'all') {
+      baseConditions.fors = selectedFors;
+    }
+
+    console.log('[TopPicks] Base conditions:', baseConditions);
+
+    // Fetch ALL users matching gender (we'll prioritize by toppicks and globe later)
+    let allUsers = await User.findAll({
+      where: baseConditions,
+      limit: 1000,
+    });
+
+    console.log('[TopPicks] After gender filter:', allUsers.length);
+
+    if (allUsers.length === 0) {
+      res.status(200).json([]);
+      return;
+    }
+
+    // ===== STEP 2: ENRICH DATA =====
+    const minAge = toNumberOrUndefined(from) || toNumberOrUndefined(currentUser.ages) || 18;
+    const maxAge = toNumberOrUndefined(to) || toNumberOrUndefined(currentUser.secondages) || 100;
+    const maxDistanceKm = toNumberOrUndefined(distance);
+    
+    const requestedCountry = toTrimmedLower(country);
+    const currentUserCountry = toTrimmedLower(currentUser.country);
+    const targetCountry = requestedCountry && requestedCountry !== 'null' ? requestedCountry : currentUserCountry;
+
+    const enrichedUsers = allUsers.map((user) => {
+      const u: any = user.toJSON();
+      
+      // Calculate age
+      u.computedAge = calculateAge(u.years);
+      u.ageMatch = u.computedAge != null && u.computedAge >= minAge && u.computedAge <= maxAge;
+      
+      // Calculate distance
+      u.computedDistance = computeCandidateDistanceKm(currentUser, u);
+      u.distanceMatch = maxDistanceKm != null && u.computedDistance !== Infinity 
+        ? u.computedDistance <= maxDistanceKm 
+        : null;
+      
+      // Country match
+      const candCountry = toTrimmedLower(u.country);
+      u.countryMatch = targetCountry && candCountry ? candCountry === targetCountry : false;
+      
+      // Check toppicks and globe flags (handle both 'true' string and boolean true)
+      u.hasTopPicks = u.toppicks === 'true' || u.toppicks === true;
+      u.hasGlobe = u.globe === 'true' || u.globe === true;
+      
+      // Calculate match score for sorting
+      u._score = computeMatchScore(currentUser, u, u.computedDistance);
+      
+      // Boost score for paid/premium users
+      if (u.subs && u.subs !== 'FREE') {
+        u._score += 0.05;
+      }
+      
+      return u;
+    });
+
+    // ===== STEP 3: PRIORITIZED FILTERING =====
+    // This creates multiple tiers of matches based on priority
+    
+    // PRIORITY 1: toppicks=true + globe=false + age + country + distance
+    // (Users who opted into top picks but only in their country)
+    let tier1 = enrichedUsers.filter(u => 
+      u.hasTopPicks &&
+      !u.hasGlobe &&
+      u.ageMatch &&
+      u.countryMatch &&
+      (u.distanceMatch === true || u.distanceMatch === null)
+    );
+    console.log('[TopPicks Priority 1] toppicks + !globe + age + country + distance:', tier1.length);
+
+    // PRIORITY 2: toppicks=true + globe=false + age + country (ignore distance)
+    let tier2 = enrichedUsers.filter(u => 
+      u.hasTopPicks &&
+      !u.hasGlobe &&
+      u.ageMatch &&
+      u.countryMatch &&
+      !tier1.includes(u)
+    );
+    console.log('[TopPicks Priority 2] toppicks + !globe + age + country (any distance):', tier2.length);
+
+    // PRIORITY 3: toppicks=true + globe=true + age + country + distance
+    // (Global users in same country with distance match)
+    let tier3 = enrichedUsers.filter(u => 
+      u.hasTopPicks &&
+      u.hasGlobe &&
+      u.ageMatch &&
+      u.countryMatch &&
+      (u.distanceMatch === true || u.distanceMatch === null) &&
+      !tier1.includes(u) &&
+      !tier2.includes(u)
+    );
+    console.log('[TopPicks Priority 3] toppicks + globe + age + country + distance:', tier3.length);
+
+    // PRIORITY 4: toppicks=true + globe=true + age + country (ignore distance)
+    let tier4 = enrichedUsers.filter(u => 
+      u.hasTopPicks &&
+      u.hasGlobe &&
+      u.ageMatch &&
+      u.countryMatch &&
+      !tier1.includes(u) &&
+      !tier2.includes(u) &&
+      !tier3.includes(u)
+    );
+    console.log('[TopPicks Priority 4] toppicks + globe + age + country (any distance):', tier4.length);
+
+    // PRIORITY 5: toppicks=true + globe=true + age (ANY LOCATION - worldwide)
+    let tier5 = enrichedUsers.filter(u => 
+      u.hasTopPicks &&
+      u.hasGlobe &&
+      u.ageMatch &&
+      !tier1.includes(u) &&
+      !tier2.includes(u) &&
+      !tier3.includes(u) &&
+      !tier4.includes(u)
+    );
+    console.log('[TopPicks Priority 5] toppicks + globe + age (worldwide):', tier5.length);
+
+    // PRIORITY 6: toppicks=true + globe=false (relax age, but still same country only)
+    let tier6 = enrichedUsers.filter(u => 
+      u.hasTopPicks &&
+      !u.hasGlobe &&
+      u.countryMatch &&
+      !tier1.includes(u) &&
+      !tier2.includes(u)
+    );
+    console.log('[TopPicks Priority 6] toppicks + !globe + country (relaxed age):', tier6.length);
+
+    // PRIORITY 7: toppicks=true + globe=true (relax age and location - show everyone globally)
+    let tier7 = enrichedUsers.filter(u => 
+      u.hasTopPicks &&
+      u.hasGlobe &&
+      !tier1.includes(u) &&
+      !tier2.includes(u) &&
+      !tier3.includes(u) &&
+      !tier4.includes(u) &&
+      !tier5.includes(u)
+    );
+    console.log('[TopPicks Priority 7] toppicks + globe (relaxed age, worldwide):', tier7.length);
+
+    // ===== STEP 4: SORT EACH TIER BY SCORE =====
+    const sortByScore = (a: any, b: any) => {
+      // First by age match
+      if (a.ageMatch !== b.ageMatch) return b.ageMatch ? 1 : -1;
+      
+      // Then by country match
+      if (a.countryMatch !== b.countryMatch) return b.countryMatch ? 1 : -1;
+      
+      // Then by distance
+      const distA = a.computedDistance !== Infinity ? a.computedDistance : 999999;
+      const distB = b.computedDistance !== Infinity ? b.computedDistance : 999999;
+      if (distA !== distB) return distA - distB;
+      
+      // Finally by computed score
+      return (b._score || 0) - (a._score || 0);
+    };
+
+    tier1.sort(sortByScore);
+    tier2.sort(sortByScore);
+    tier3.sort(sortByScore);
+    tier4.sort(sortByScore);
+    tier5.sort(sortByScore);
+    tier6.sort(sortByScore);
+    tier7.sort(sortByScore);
+
+    // ===== STEP 5: COMBINE TIERS IN ORDER =====
+    const combinedTopPicks = [
+      ...tier1,
+      ...tier2,
+      ...tier3,
+      ...tier4,
+      ...tier5,
+      ...tier6,
+      ...tier7
+    ];
+
+    console.log('[TopPicks] Total combined picks:', combinedTopPicks.length);
+
+    // ===== STEP 6: FORMAT AND RETURN =====
+    const picksData = combinedTopPicks.slice(0, 50).map(pick => {
+      const data: any = pick;
+      
+      // Remove sensitive data
+      delete data.password;
+      delete data.OTP;
+      delete data.OTPExpiry;
+      
+      // Format response
+      return {
+        ...data,
+        age: data.computedAge,
+        distance: data.computedDistance !== Infinity 
+          ? Number(data.computedDistance.toFixed(2)) 
+          : null,
+        status: data.status,
+        score: data._score ? Number(data._score.toFixed(4)) : undefined,
+        // Remove temporary fields
+        computedDistance: undefined,
+        computedAge: undefined,
+        ageMatch: undefined,
+        countryMatch: undefined,
+        distanceMatch: undefined,
+        hasTopPicks: undefined,
+        hasGlobe: undefined,
+        _score: undefined,
+      };
+    });
+
+    console.log('[TopPicks] Returning:', picksData.length, 'picks');
+    res.status(200).json(picksData);
+  } catch (error: any) {
+    console.error("Get top picks error:", error);
+    res.status(500).json({ message: "Server error", status: 0, error: error.message });
+  }
+};
 // Reset newlikes flag
 export const resetNewLikes = async (req: Request, res: Response) => {
   try {

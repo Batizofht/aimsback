@@ -21,13 +21,11 @@ export const registerUser = async (req: Request, res: Response) => {
 
     // Check if user already exists
     console.log(`email which is ${username} and  phone which is ${phone} are required`)
-    const existingUser = await User.findOne({
-      where: {
-        [Op.or]: [{ email: username }],IsVerified: true
-      },
-    });
-
-    if (existingUser) {
+const existingUser = await User.findOne({
+  where: { email: username },
+});
+ 
+   if (existingUser && existingUser.aproved === 'YES') {
       res.status(400).json({ message: "User already exists", status: 0 });
       return;
     }
@@ -242,6 +240,34 @@ export const googleAuth = async (req: Request, res: Response) => {
 
       // Check if user was created manually (not with Google)
       if ((existingUser as any).signedWithGoogle === 'NO') {
+        if (existingUser.aproved === 'NO') {
+          const safeName = typeof name === 'string' ? name.trim() : '';
+          const [firstName = '', ...restNames] = safeName.split(' ');
+          const lastName = restNames.join(' ').trim();
+
+          const randomPassword = Math.random().toString(36).slice(-12);
+          const hashedPassword = await bcrypt.hash(randomPassword, 10);
+
+          await existingUser.update({
+            password: hashedPassword,
+            f_name: firstName || (existingUser as any).f_name || undefined,
+            l_name: lastName || (existingUser as any).l_name || undefined,
+            IsVerified: false,
+            aproved: (existingUser as any).aproved || 'NO',
+            signedWithGoogle: 'YES',
+            OTP: null as any,
+            OTPExpiry: undefined,
+          } as any);
+
+          res.status(200).json({
+            userId: existingUser.id,
+            status: 1,
+            isNewUser: true,
+            requiresOnboarding: true,
+          });
+          return;
+        }
+
         res.status(400).json({ 
           message: "There is already a user with this email that signed up manually. Please use your credentials to sign in.", 
           status: 0 

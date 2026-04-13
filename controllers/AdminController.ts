@@ -7,7 +7,12 @@ import AdminSession from '../models/AdminSession'
 import User from '../models/User'
 import Report from '../models/Report'
 import ContactMessage from '../models/ContactMessage'
-import { sendBlockedEmail, sendWarningEmail } from '../utils/email'
+import Match from '../models/Match'
+import Message from '../models/Message'
+import Notification from '../models/Notification'
+import PushToken from '../models/PushToken'
+import CallLog from '../models/CallLog'
+import { sendBlockedEmail, sendWarningEmail, sendUnblockedEmail } from '../utils/email'
 
 const TOKEN_TTL_DAYS = 14
 
@@ -293,6 +298,16 @@ export const adminSetUserBlocked = async (req: Request, res: Response) => {
 
     await user.update({ isBlocked } as any)
 
+    // Send email notification to user
+    const userEmail = String((user as any).email || '')
+    if (userEmail) {
+      if (isBlocked) {
+        void sendBlockedEmail(userEmail, 'Violation of community guidelines')
+      } else {
+        void sendUnblockedEmail(userEmail)
+      }
+    }
+
     res.status(200).json({ status: 1 })
   } catch (e) {
     console.error('Admin block user error:', e)
@@ -313,6 +328,14 @@ export const adminDeleteUser = async (req: Request, res: Response) => {
       res.status(404).json({ status: 0, message: 'User not found' })
       return
     }
+
+    // Cascade delete all associated data
+    await Match.destroy({ where: { [Op.or]: [{ user_id: userId }, { matched_user_id: userId }] } as any })
+    await Message.destroy({ where: { [Op.or]: [{ sender_id: userId }, { receiver_id: userId }] } as any })
+    await Notification.destroy({ where: { [Op.or]: [{ user_id: userId }, { sender_id: userId }] } as any })
+    await PushToken.destroy({ where: { user_id: userId } as any })
+    await CallLog.destroy({ where: { [Op.or]: [{ caller_id: userId }, { callee_id: userId }] } as any })
+    await Report.destroy({ where: { [Op.or]: [{ reporter_id: userId }, { reported_user_id: userId }] } as any })
 
     await user.destroy()
     res.status(200).json({ status: 1 })

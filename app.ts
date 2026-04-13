@@ -7,6 +7,7 @@ import apiRoute from './routes/apiRoute';
 import path from 'path';
 import fs from 'fs';
 import { touchLastActive } from './middlewares/touchLastActive';
+import { generateSitemap, generateRobotsTxt } from './controllers/SitemapController';
 
 let app: Express = express();
 app.use(cors());
@@ -37,6 +38,10 @@ app.use("/vava", UserRoute);
 
 // New clean API routes
 app.use("/api", apiRoute);
+
+// SEO routes - dynamic sitemap and robots.txt
+app.get('/sitemap.xml', generateSitemap);
+app.get('/robots.txt', generateRobotsTxt);
 
 app.get('/', (req, res) => {
   res.send('MeIntoYou API Server Running |FROM LIGHT INC|');

@@ -20,6 +20,23 @@ export interface UserInterface {
   interest?: string;
   education?: string;
   schoolname?: string;
+  // More about you (optional)
+  height_cm?: number;
+  hasKids?: boolean | null;
+  wantsKids?: boolean | null;
+  relationshipStatus?: string;
+  smoking?: string;
+  drinking?: string;
+  exercise?: string;
+  occupation?: string;
+  industry?: string;
+  languages?: string; // comma-separated
+  religion?: string;
+  showReligion?: boolean;
+  pets_dogs?: boolean | null;
+  pets_cats?: boolean | null;
+  pets_other?: boolean | null;
+  loveLanguages?: string; // comma-separated
   im1?: string;
   im2?: string;
   im3?: string;

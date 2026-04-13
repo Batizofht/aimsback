@@ -40,24 +40,45 @@ const cleanupInactiveUsers = async () => {
 meintoyouapp.authenticate().then(async () => {
     console.log("Database connected successfully");
     
-    // Define model associations
+    // Define model associations first
     defineAssociations();
     
-    // Ensure strikes column exists before sync
+    // Step 1: Sync all tables first (creates them if they don't exist)
     try {
-        await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS strikes INTEGER DEFAULT 0;');
-        console.log("Strikes column ensured");
-    } catch (alterError) {
-        console.error("Error adding strikes column:", alterError);
+        await meintoyouapp.sync({ force: false, alter: false });
+        console.log("Database models synchronized successfully");
+    } catch (syncError) {
+        console.error("Database sync error:", syncError);
     }
     
-    // Sync database - Sequelize will handle dependency order automatically
-    // First try to sync without alter (creates tables if they don't exist)
+    // Step 2: Now run ALTER queries to add columns (tables exist now)
     try {
-        await ContactMessage.sync({alter:true})
-        await meintoyouapp.sync({ force: false });
-        console.log("Database models synchronized successfully");
-        await Notification.sync({alter:true})
+        await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS strikes INTEGER DEFAULT 0;');
+        await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS height_cm INTEGER NULL;');
+        await meintoyouapp.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS \"hasKids\" BOOLEAN NULL;");
+        await meintoyouapp.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS \"wantsKids\" BOOLEAN NULL;");
+        await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS relationshipStatus VARCHAR(50) NULL;');
+        await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS smoking VARCHAR(30) NULL;');
+        await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS drinking VARCHAR(30) NULL;');
+        await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS exercise VARCHAR(30) NULL;');
+        await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS occupation VARCHAR(120) NULL;');
+        await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS industry VARCHAR(120) NULL;');
+        await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS languages TEXT NULL;');
+        await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS religion VARCHAR(120) NULL;');
+        await meintoyouapp.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS \"showReligion\" BOOLEAN DEFAULT TRUE;");
+        await meintoyouapp.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS \"pets_dogs\" BOOLEAN NULL;");
+        await meintoyouapp.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS \"pets_cats\" BOOLEAN NULL;");
+        await meintoyouapp.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS \"pets_other\" BOOLEAN NULL;");
+        await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS loveLanguages TEXT NULL;');
+        console.log("User columns ensured");
+    } catch (alterError) {
+        console.error("Error adding columns:", alterError);
+    }
+    
+    // Step 3: Sync ContactMessage and Notification with alter
+    try {
+        await ContactMessage.sync({ alter: true });
+        await Notification.sync({ alter: true });
         await seedAdminIfNeeded();
         
         // Mark all users as offline on server start

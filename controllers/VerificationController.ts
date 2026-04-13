@@ -1,5 +1,6 @@
 import { Request, Response } from 'express'
 import User from '../models/User'
+import { sendVerificationApprovedEmail, sendVerificationRejectedEmail } from '../utils/email'
 
 const ensureVerificationColumns = async () => {
   // Keep this defensive: the project uses runtime ALTER TABLE in controllers.
@@ -157,6 +158,16 @@ export const adminReviewVerification = async (req: Request, res: Response) => {
       verificationReviewedAt: new Date(),
       verificationRejectionReason: decision === 'rejected' ? (reason || 'Rejected') : null,
     } as any)
+
+    // Send email notification to user
+    const userEmail = (user as any).email
+    if (userEmail) {
+      if (decision === 'verified') {
+        void sendVerificationApprovedEmail(userEmail)
+      } else {
+        void sendVerificationRejectedEmail(userEmail, reason || 'Documents did not meet verification requirements')
+      }
+    }
 
     res.status(200).json({ status: 1 })
   } catch (e) {

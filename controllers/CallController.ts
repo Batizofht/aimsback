@@ -189,21 +189,34 @@ export const getActiveCallBetweenUsers = async (req: Request, res: Response) => 
     const user_id = Number(userId);
     const peer_id = Number(peerId);
 
-    if (!user_id || !peer_id) {
-      res.status(400).json({ message: 'userId and peerId are required', status: 0 });
+    if (!user_id) {
+      res.status(400).json({ message: 'userId is required', status: 0 });
       return;
     }
 
-    const log = await CallLog.findOne({
-      where: {
-        status: { [Op.in]: ['ringing', 'accepted'] },
-        [Op.or]: [
-          { caller_id: peer_id, callee_id: user_id },
-          { caller_id: user_id, callee_id: peer_id },
-        ],
-      },
-      order: [['createdAt', 'DESC']],
-    });
+    let log;
+    if (peer_id) {
+      // pair-mode: caller or callee in a call with the specific peer
+      log = await CallLog.findOne({
+        where: {
+          status: { [Op.in]: ['ringing', 'accepted'] },
+          [Op.or]: [
+            { caller_id: peer_id, callee_id: user_id },
+            { caller_id: user_id, callee_id: peer_id },
+          ],
+        },
+        order: [['createdAt', 'DESC']],
+      });
+    } else {
+      // global-mode: return only incoming ringing call for this user (for app-wide modal)
+      log = await CallLog.findOne({
+        where: {
+          status: 'ringing',
+          callee_id: user_id,
+        },
+        order: [['createdAt', 'DESC']],
+      });
+    }
 
     if (!log) {
       res.status(200).json({ status: 1, call: null });

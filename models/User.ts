@@ -26,6 +26,23 @@ class UserInt extends Model<UserInterface> implements UserInterface {
   newmessage?:boolean;
   newlikes?:boolean;
   schoolname?: string;
+  // More about you (optional)
+  height_cm?: number;
+  hasKids?: boolean;
+  wantsKids?: boolean;
+  relationshipStatus?: string;
+  smoking?: string;
+  drinking?: string;
+  exercise?: string;
+  occupation?: string;
+  industry?: string;
+  languages?: string;
+  religion?: string;
+  showReligion?: boolean;
+  pets_dogs?: boolean;
+  pets_cats?: boolean;
+  pets_other?: boolean;
+  loveLanguages?: string;
   im1?: string;
   im2?: string;
   im3?: string;
@@ -150,6 +167,79 @@ const User = meintoyouapp.define<UserInt, UserInterface>(
     schoolname: {
       type: DataTypes.STRING(250),
       allowNull: true,
+    },
+    // More about you (optional)
+    height_cm: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    hasKids: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      defaultValue: null,
+    },
+    wantsKids: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      defaultValue: null,
+    },
+    relationshipStatus: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+      field: 'relationshipstatus',
+    },
+    smoking: {
+      type: DataTypes.STRING(30),
+      allowNull: true,
+    },
+    drinking: {
+      type: DataTypes.STRING(30),
+      allowNull: true,
+    },
+    exercise: {
+      type: DataTypes.STRING(30),
+      allowNull: true,
+    },
+    occupation: {
+      type: DataTypes.STRING(120),
+      allowNull: true,
+    },
+    industry: {
+      type: DataTypes.STRING(120),
+      allowNull: true,
+    },
+    languages: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    religion: {
+      type: DataTypes.STRING(120),
+      allowNull: true,
+    },
+    showReligion: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      defaultValue: true,
+    },
+    pets_dogs: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      defaultValue: null,
+    },
+    pets_cats: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      defaultValue: null,
+    },
+    pets_other: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      defaultValue: null,
+    },
+    loveLanguages: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      field: 'lovelanguages',
     },
     im1: {
       type: DataTypes.STRING(500),

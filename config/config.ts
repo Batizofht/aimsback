@@ -15,21 +15,20 @@ export const meintoyouapp = new Sequelize('postgresql://postgres.jbdmaoohlspxdlp
 
 
 
-
-
-
-/* ================================ HERE IS THE CONFIG ONCE YOU ARE USING REAL PGADMIN OR VPS CONFIG ============== */
-
-// export const meintoyouapp = new Sequelize({
-//   username: "stigesfo_batizo",
-//   password: "jkasjkasjkkjhxckjlbcljEBCJHBCEJHBqechbqjkhcbkljwcxn;WCNLej212123..33@@ihcbLJIQWCNjilcbnILQJCBKCBJH",
-//   database: "stigesfo_sihsportal",
-//   port: 5432,
+/*====================================PRODUCTION SUPABASE==================================================*/
+// export const meintoyouapp = new Sequelize('postgresql://postgres.rcjppgpnfjgobbdcptst:GODis900d(yes-heIS)@aws-1-eu-west-3.pooler.supabase.com:5432/postgres', {
 //   dialect: "postgres",
+//   dialectOptions: {
+//     ssl: {
+//       require: true,
+//       rejectUnauthorized: false,
+//     },
+//   },
 //   logging: false,
-//   host: "127.0.0.1",
 // });
 
-// Export it so that it can be exposed outside this file and directory
+
+
+
 export default meintoyouapp;
 

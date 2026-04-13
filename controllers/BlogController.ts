@@ -189,14 +189,16 @@ export const adminAutosaveBlog = async (req: Request, res: Response) => {
       return
     }
 
-    const title = String(req.body?.title || current.title).trim()
+    const title = req.body?.title !== undefined ? String(req.body.title).trim() : current.title
     const excerpt = req.body?.description !== undefined
-      ? String(req.body.description || '').trim()
+      ? String(req.body.description).trim() || null
       : req.body?.excerpt !== undefined
-        ? String(req.body.excerpt || '').trim()
+        ? String(req.body.excerpt).trim() || null
         : current.excerpt
     const content = req.body?.content !== undefined ? String(req.body.content) : current.content
-    const coverImage = req.body?.coverImage !== undefined ? String(req.body.coverImage || '').trim() : current.coverImage
+    const coverImage = req.body?.coverImage !== undefined 
+      ? (String(req.body.coverImage).trim() || null)
+      : current.coverImage
 
     if (!title) {
       res.status(400).json({ status: 0, message: 'Title is required' })
@@ -208,12 +210,14 @@ export const adminAutosaveBlog = async (req: Request, res: Response) => {
     await row.update({
       title,
       slug,
-      excerpt: excerpt || null,
+      excerpt,
       content,
-      coverImage: coverImage || null,
+      coverImage,
       status: 'draft',
       publishedAt: null,
     } as any)
+
+    await row.reload()
 
     res.status(200).json({ status: 1, blog: withDescription(row), autosavedAt: new Date().toISOString() })
   } catch (error) {

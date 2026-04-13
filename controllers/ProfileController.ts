@@ -8,7 +8,34 @@ import { saveTempBase64 } from "../utils/saveTempBase64";
 // Update Profile
 export const updateProfile = async (req: Request, res: Response) => {
   try {
-    const { user, fname, lname, bio, school, university, newlook, city, country } = req.body;
+    const {
+      user,
+      fname,
+      lname,
+      bio,
+      school,
+      university,
+      newlook,
+      city,
+      country,
+      // More about you (all optional)
+      height_cm,
+      hasKids,
+      wantsKids,
+      relationshipStatus,
+      smoking,
+      drinking,
+      exercise,
+      occupation,
+      industry,
+      languages,
+      religion,
+      showReligion,
+      pets_dogs,
+      pets_cats,
+      pets_other,
+      loveLanguages,
+    } = req.body;
 
     const userRecord = await User.findByPk(user);
     if (!userRecord) {
@@ -25,6 +52,30 @@ export const updateProfile = async (req: Request, res: Response) => {
     if (newlook) updateData.fors = newlook;
     if (city) updateData.city = city;
     if (country) updateData.country = country;
+
+    // Coerce and persist optional 'More about you' fields if present
+    const toBool = (v: any) => {
+      if (typeof v === 'boolean') return v;
+      if (v === 'true' || v === '1' || v === 1) return true;
+      if (v === 'false' || v === '0' || v === 0) return false;
+      return null;
+    };
+    if (height_cm !== undefined) updateData.height_cm = height_cm === '' || height_cm === null ? null : Number(height_cm);
+    if (hasKids !== undefined) updateData.hasKids = toBool(hasKids);
+    if (wantsKids !== undefined) updateData.wantsKids = toBool(wantsKids);
+    if (relationshipStatus !== undefined) updateData.relationshipStatus = relationshipStatus || null;
+    if (smoking !== undefined) updateData.smoking = smoking || null;
+    if (drinking !== undefined) updateData.drinking = drinking || null;
+    if (exercise !== undefined) updateData.exercise = exercise || null;
+    if (occupation !== undefined) updateData.occupation = occupation || null;
+    if (industry !== undefined) updateData.industry = industry || null;
+    if (languages !== undefined) updateData.languages = languages || null;
+    if (religion !== undefined) updateData.religion = religion || null;
+    if (showReligion !== undefined) updateData.showReligion = toBool(showReligion);
+    if (pets_dogs !== undefined) updateData.pets_dogs = toBool(pets_dogs);
+    if (pets_cats !== undefined) updateData.pets_cats = toBool(pets_cats);
+    if (pets_other !== undefined) updateData.pets_other = toBool(pets_other);
+    if (loveLanguages !== undefined) updateData.loveLanguages = loveLanguages || null;
 
     await userRecord.update(updateData);
 
