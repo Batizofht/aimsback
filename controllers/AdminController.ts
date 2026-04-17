@@ -106,12 +106,14 @@ export const adminUserGrowth = async (req: Request, res: Response) => {
         reportsSelectGroupBy = 'DATE_TRUNC(\'day\', "createdAt")'
     }
 
-    // Get new users per period
+    // Get new users per period (approved only)
     const newUsersData = await User.findAll({
       where: {
         createdAt: {
           [Op.gte]: startDate
-        }
+        },
+        IsVerified: true,
+        aproved: 'YES'
       },
       attributes: [
         [literal(selectGroupBy), 'period'],
@@ -133,7 +135,7 @@ export const adminUserGrowth = async (req: Request, res: Response) => {
       type: QueryTypes.SELECT
     }) as any[]
 
-    // Get matched users (users with strikes)
+    // Get matched users (users with strikes, approved only)
     const matchedUsersData = await User.findAll({
       where: {
         createdAt: {
@@ -141,7 +143,9 @@ export const adminUserGrowth = async (req: Request, res: Response) => {
         },
         strikes: {
           [Op.gt]: 0
-        }
+        },
+        IsVerified: true,
+        aproved: 'YES'
       },
       attributes: [
         [literal(selectGroupBy), 'period'],
@@ -193,7 +197,7 @@ export const adminStats = async (req: Request, res: Response) => {
     // Ensure strikes column exists
     await User.sequelize?.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS strikes INTEGER DEFAULT 0;')
 
-    const verifiedWhere = { IsVerified: true }
+    const verifiedWhere = { IsVerified: true, aproved: 'YES' }
     const totalUsers = await User.count({ where: verifiedWhere })
 
     const activeSince = new Date(Date.now() - 24 * 60 * 60 * 1000)
@@ -252,13 +256,18 @@ export const adminListUsers = async (req: Request, res: Response) => {
     const offset = Math.max(Number(req.query.offset) || 0, 0)
     const q = typeof req.query.q === 'string' ? req.query.q.trim() : ''
 
-    const where: any = {}
+    const where: any = {
+      IsVerified: true,
+      aproved: 'YES' // Only fully approved users
+    }
     if (q) {
-      where[Op.or] = [
-        { email: { [Op.iLike]: `%${q}%` } },
-        { phone: { [Op.iLike]: `%${q}%` } },
-        { f_name: { [Op.iLike]: `%${q}%` } },
-        { l_name: { [Op.iLike]: `%${q}%` } },
+      where[Op.and] = [
+        where[Op.or] = [
+          { email: { [Op.iLike]: `%${q}%` } },
+          { phone: { [Op.iLike]: `%${q}%` } },
+          { f_name: { [Op.iLike]: `%${q}%` } },
+          { l_name: { [Op.iLike]: `%${q}%` } },
+        ]
       ]
     }
 

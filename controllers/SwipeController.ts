@@ -1,3 +1,5 @@
+///////////////////////////////// THIS CODEBASE BELONGS TO LIGHT GROUP INC. A HOLDING COMPANY OF MEINTOYOU
+
 import { Request, Response } from "express";
 import User from "../models/User";
 import Match from "../models/Match";
@@ -5,6 +7,13 @@ import { calculateDistance } from "../utils/distance";
 import { Op } from "sequelize";
 import { sendPushNotification } from "../utils/pushNotification";
 import Notification from "../models/Notification";
+
+
+//////////////////////////////THESE CODES HAVE BEEN WRITTEN FROM SCRATCH AND NON AI RELATED /////////////////////////////////
+/**
+ RESPECT THE EDITING OF THESE CODES AND THIS ENTIRE FILE
+ **/
+
 const toNumberOrUndefined = (value: any): number | undefined => {
   if (value == null) return undefined;
   const n = Number(value);
@@ -24,6 +33,8 @@ const parseInterestList = (value: any): string[] => {
     .filter(Boolean);
 };
 
+
+// fht:explaining the codes <||> Purpose: Calculates how many interests two users share. Used for matching algorithms.
 const computeInterestOverlapCount = (a: any, b: any): number => {
   const aList = parseInterestList(a);
   const bList = parseInterestList(b);
@@ -56,7 +67,8 @@ const calculateAge = (years: any): number | undefined => {
   
   const currentYear = new Date().getFullYear();
   
-  // If years is already an age (< 120), return it
+  // If years is already an age (< 120), return it, any way this is almost imposible 
+  // except if the user has bypassed all the onboarding checkings and verifications
   if (yearValue < 120) return yearValue;
   
   // If years is a birth year (> 1900), calculate age
@@ -140,9 +152,15 @@ export const getPotentialMatches = async (req: Request, res: Response) => {
       city         // City preference
     } = req.method === 'POST' ? req.body : req.query;
 
+
+// THIS CONSOSLES ARE JUST FOR TESTING DURING DEVELOPMENT
+///////////////////////////////////////////////////////////
     console.log('[PotentialMatches] Request params:', {
       owner, email, from, to, wanttosee, interest, distance, fors, Orientation, country, city
     });
+/////////////////////////////////////////////////////////////
+
+
 
     if (!owner || !email) {
       res.status(400).json({ message: "Owner and email are required", status: 0 });
@@ -170,7 +188,7 @@ export const getPotentialMatches = async (req: Request, res: Response) => {
       aproved: 'YES',
       IsVerified: true,
       isBlocked: false,
-      tester: false, // Exclude test accounts from matching
+      tester: false, // Exclude test accounts from matching (for fht<||>)
     };
 
     // MANDATORY: Gender filter (wanttosee) - this is the ONLY hard filter
@@ -197,9 +215,15 @@ export const getPotentialMatches = async (req: Request, res: Response) => {
 
     // ===== STEP 2: ENRICH DATA WITH COMPUTED VALUES =====
     const maxDistanceKm = toNumberOrUndefined(distance);
-    const minAge = toNumberOrUndefined(from) || toNumberOrUndefined(currentUser.ages) || 18;
-    const maxAge = toNumberOrUndefined(to) || toNumberOrUndefined(currentUser.secondages) || 100;
-    
+
+
+  // fht:explaining the codes <||> Purpose: Set age range bounds with priority fallback chain using nullish coalescing (??).
+  // Logic: 1) Use explicit request param (from/to) if provided | 2) Fall back to user's saved preferences (ages/secondages) | 3) Default to 18-100 if neither set.
+  // Note: ?? only falls back for null/undefined, not 0 - so age 0 is valid unlike || which would treat 0 as falsy.
+  const minAge = toNumberOrUndefined(from) ?? toNumberOrUndefined(currentUser.ages) ?? 18;
+  const maxAge = toNumberOrUndefined(to) ?? toNumberOrUndefined(currentUser.secondages) ?? 100;
+
+
     const requestedCity = toTrimmedLower(city);
     const requestedCountry = toTrimmedLower(country);
     const requestedInterests = parseInterestList(interest || currentUser.interest);
@@ -548,7 +572,7 @@ export const swipeAction = async (req: Request, res: Response) => {
           await liked.update({ newlikes: true });
         }
 
-        if (liker && liked && liked.push === 'true') {
+        if (liker && liked ) {
           await Notification.create({
             user_id: rec,
             sender_id: user,
@@ -775,8 +799,17 @@ export const getTopPicks = async (req: Request, res: Response) => {
     }
 
     // ===== STEP 2: ENRICH DATA =====
-    const minAge = toNumberOrUndefined(from) || toNumberOrUndefined(currentUser.ages) || 18;
-    const maxAge = toNumberOrUndefined(to) || toNumberOrUndefined(currentUser.secondages) || 100;
+
+
+  // fht:explaining the codes <||> Purpose: Set age range bounds with priority fallback chain using nullish coalescing (??).
+  // Logic: 1) Use explicit request param (from/to) if provided | 2) Fall back to user's saved preferences (ages/secondages) | 3) Default to 18-100 if neither set.
+  // Note: ?? only falls back for null/undefined, not 0 - so age 0 is valid unlike || which would treat 0 as falsy.
+  const minAge = toNumberOrUndefined(from) ?? toNumberOrUndefined(currentUser.ages) ?? 18;
+  const maxAge = toNumberOrUndefined(to) ?? toNumberOrUndefined(currentUser.secondages) ?? 100;
+
+
+
+
     const maxDistanceKm = toNumberOrUndefined(distance);
     
     const requestedCountry = toTrimmedLower(country);
@@ -1056,8 +1089,12 @@ export const filteredExplore = async (req: Request, res: Response) => {
     }
 
     // ===== STEP 2: ENRICH DATA =====
-    const minAge = toNumberOrUndefined(from) || toNumberOrUndefined(currentUser.ages) || 18;
-    const maxAge = toNumberOrUndefined(to) || toNumberOrUndefined(currentUser.secondages) || 100;
+    // fht:explaining the codes <||> Purpose: Set age range bounds with priority fallback chain using nullish coalescing (??).
+  // Logic: 1) Use explicit request param (from/to) if provided | 2) Fall back to user's saved preferences (ages/secondages) | 3) Default to 18-100 if neither set.
+  // Note: ?? only falls back for null/undefined, not 0 - so age 0 is valid unlike || which would treat 0 as falsy.
+  const minAge = toNumberOrUndefined(from) ?? toNumberOrUndefined(currentUser.ages) ?? 18;
+  const maxAge = toNumberOrUndefined(to) ?? toNumberOrUndefined(currentUser.secondages) ?? 100;
+
     const maxDistanceKm = toNumberOrUndefined(distance);
     
     const requestedCountry = toTrimmedLower(country);

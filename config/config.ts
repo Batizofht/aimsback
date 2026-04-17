@@ -16,7 +16,7 @@ import { Sequelize } from "sequelize";
 
 
 /*====================================PRODUCTION SUPABASE==================================================*/
-export const meintoyouapp = new Sequelize('postgresql://postgres.rcjppgpnfjgobbdcptst:GODis900d(yes-heIS)@aws-1-eu-west-3.pooler.supabase.com:5432/postgres', {
+export const meintoyouapp = new Sequelize('postgresql://postgres:dfvadfvcsdfvsdfvsdfvsdfvsdfvsdfv@db.rcjppgpnfjgobbdcptst.supabase.co:5432/postgres', {
   dialect: "postgres",
   dialectOptions: {
     ssl: {

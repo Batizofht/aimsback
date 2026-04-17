@@ -343,9 +343,12 @@ const User = meintoyouapp.define<UserInt, UserInterface>(
     },
 
     verificationStatus: {
-      type: DataTypes.ENUM('unverified', 'pending', 'verified', 'rejected'),
+      type: DataTypes.STRING(20),
       allowNull: false,
       defaultValue: 'unverified',
+      validate: {
+        isIn: [['unverified', 'pending', 'verified', 'rejected']],
+      },
     },
     verificationDocType: {
       type: DataTypes.STRING(50),

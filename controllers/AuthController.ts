@@ -205,7 +205,7 @@ export const loginUser = async (req: Request, res: Response) => {
     }
 
     if ((user as any).isBlocked) {
-      res.status(403).json({ message: "Account blocked", status: 0 });
+      res.status(403).json({ message: "Account blocked", status: 0, isBlocked: true });
       return;
     }
 
@@ -234,7 +234,7 @@ export const googleAuth = async (req: Request, res: Response) => {
     const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
       if ((existingUser as any).isBlocked) {
-        res.status(403).json({ message: "Account blocked", status: 0 });
+        res.status(403).json({ message: "Account blocked", status: 0, isBlocked: true });
         return;
       }
 

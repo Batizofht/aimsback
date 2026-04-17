@@ -10,6 +10,7 @@ import { seedAdminIfNeeded } from "./utils/seedAdmin";
 import { Op } from "sequelize";
 
 const server = http.createServer(app);
+const shouldRunBootMigrations = process.env.RUN_DB_BOOT_MIGRATIONS === 'true';
 
 // Cleanup function to mark inactive users as offline
 const cleanupInactiveUsers = async () => {
@@ -45,7 +46,12 @@ meintoyouapp.authenticate().then(async () => {
     
     // Step 1: Sync all tables first (creates them if they don't exist)
     try {
-        await meintoyouapp.sync({ force: false, alter: true });
+        if (shouldRunBootMigrations) {
+            await meintoyouapp.sync({ force: false, alter: true });
+        } else {
+            console.log("Skipping boot-time sync (RUN_DB_BOOT_MIGRATIONS is not true)");
+        }
+        
         console.log("Database models synchronized successfully");
     } catch (syncError) {
         console.error("Database sync error:", syncError);
@@ -53,32 +59,38 @@ meintoyouapp.authenticate().then(async () => {
     
     // Step 2: Now run ALTER queries to add columns (tables exist now)
     try {
-        await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS strikes INTEGER DEFAULT 0;');
-        await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS height_cm INTEGER NULL;');
-        await meintoyouapp.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS \"hasKids\" BOOLEAN NULL;");
-        await meintoyouapp.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS \"wantsKids\" BOOLEAN NULL;");
-        await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS relationshipStatus VARCHAR(50) NULL;');
-        await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS smoking VARCHAR(30) NULL;');
-        await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS drinking VARCHAR(30) NULL;');
-        await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS exercise VARCHAR(30) NULL;');
-        await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS occupation VARCHAR(120) NULL;');
-        await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS industry VARCHAR(120) NULL;');
-        await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS languages TEXT NULL;');
-        await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS religion VARCHAR(120) NULL;');
-        await meintoyouapp.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS \"showReligion\" BOOLEAN DEFAULT TRUE;");
-        await meintoyouapp.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS \"pets_dogs\" BOOLEAN NULL;");
-        await meintoyouapp.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS \"pets_cats\" BOOLEAN NULL;");
-        await meintoyouapp.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS \"pets_other\" BOOLEAN NULL;");
-        await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS loveLanguages TEXT NULL;');
-        console.log("User columns ensured");
+        if (shouldRunBootMigrations) {
+            await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS strikes INTEGER DEFAULT 0;');
+            await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS height_cm INTEGER NULL;');
+            await meintoyouapp.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS \"hasKids\" BOOLEAN NULL;");
+            await meintoyouapp.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS \"wantsKids\" BOOLEAN NULL;");
+            await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS relationshipStatus VARCHAR(50) NULL;');
+            await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS smoking VARCHAR(30) NULL;');
+            await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS drinking VARCHAR(30) NULL;');
+            await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS exercise VARCHAR(30) NULL;');
+            await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS occupation VARCHAR(120) NULL;');
+            await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS industry VARCHAR(120) NULL;');
+            await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS languages TEXT NULL;');
+            await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS religion VARCHAR(120) NULL;');
+            await meintoyouapp.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS \"showReligion\" BOOLEAN DEFAULT TRUE;");
+            await meintoyouapp.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS \"pets_dogs\" BOOLEAN NULL;");
+            await meintoyouapp.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS \"pets_cats\" BOOLEAN NULL;");
+            await meintoyouapp.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS \"pets_other\" BOOLEAN NULL;");
+            await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS loveLanguages TEXT NULL;');
+            console.log("User columns ensured");
+        } else {
+            console.log("Skipping boot-time ALTER TABLE statements (RUN_DB_BOOT_MIGRATIONS is not true)");
+        }
     } catch (alterError) {
         console.error("Error adding columns:", alterError);
     }
     
     // Step 3: Sync ContactMessage and Notification with alter
     try {
-        await ContactMessage.sync({ alter: true });
-        await Notification.sync({ alter: true });
+        if (shouldRunBootMigrations) {
+            await ContactMessage.sync({ alter: true });
+            await Notification.sync({ alter: true });
+        }
         await seedAdminIfNeeded();
         
         // Mark all users as offline on server start
@@ -92,19 +104,21 @@ meintoyouapp.authenticate().then(async () => {
         const err = error as Error;
         console.error("Database sync error:", err.message);
         // If sync fails, try with alter to update existing tables
-        try {
-            await meintoyouapp.sync({ alter: true });
-            console.log("Database models updated successfully");
-            await seedAdminIfNeeded();
-        } catch (syncError: unknown) {
-            const syncErr = syncError as Error;
-            console.error("Database update error:", syncErr.message);
-            // Mark all users as offline even on sync error
+        if (shouldRunBootMigrations) {
             try {
-                await User.update({ status: 'Offline' }, { where: {} });
-                console.log("All users marked as offline after sync error");
-            } catch (userError) {
-                console.error("Error marking users offline:", userError);
+                await meintoyouapp.sync({ alter: true });
+                console.log("Database models updated successfully");
+                await seedAdminIfNeeded();
+            } catch (syncError: unknown) {
+                const syncErr = syncError as Error;
+                console.error("Database update error:", syncErr.message);
+                // Mark all users as offline even on sync error
+                try {
+                    await User.update({ status: 'Offline' }, { where: {} });
+                    console.log("All users marked as offline after sync error");
+                } catch (userError) {
+                    console.error("Error marking users offline:", userError);
+                }
             }
         }
     }
