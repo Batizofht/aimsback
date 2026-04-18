@@ -9,6 +9,8 @@ class MessageInt extends Model<MessageInterface> implements MessageInterface {
   receiver_id!: number;
   message!: string;
   date?: Date;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 const Message = meintoyouapp.define<MessageInt>(

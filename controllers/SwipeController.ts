@@ -433,9 +433,44 @@ export const getPotentialMatches = async (req: Request, res: Response) => {
 };
 
 // Swipe Action (Like/Pass/Flag)
+export const getSafeCurrentUserId = (req: Request): number | null => {
+  try {
+    const { matchess } = req.query;
+    const userId = Number(matchess);
+
+    if (!userId) {
+      return null;
+    }
+
+    return userId;
+  } catch (error) {
+    return null;
+  }
+};
+
+const parseDateFromClient = (dateValue: any, clientTimestampValue: any): Date => {
+  const rawClientTs = Array.isArray(clientTimestampValue) ? clientTimestampValue[0] : clientTimestampValue;
+  if (rawClientTs !== undefined && rawClientTs !== null && String(rawClientTs).trim() !== "") {
+    const parsedTs = Number(rawClientTs);
+    if (!Number.isNaN(parsedTs) && Number.isFinite(parsedTs) && parsedTs > 0) {
+      const fromTs = new Date(parsedTs);
+      if (!Number.isNaN(fromTs.getTime())) return fromTs;
+    }
+  }
+
+  const rawDate = Array.isArray(dateValue) ? dateValue[0] : dateValue;
+  if (rawDate) {
+    const parsedDate = new Date(rawDate);
+    if (!Number.isNaN(parsedDate.getTime())) return parsedDate;
+  }
+
+  return new Date();
+};
+
 export const swipeAction = async (req: Request, res: Response) => {
   try {
-    const { user, rec, direction } = req.body;
+    const { user, rec, direction, date, clientTimestamp } = req.body;
+    const actionDate = parseDateFromClient(date, clientTimestamp);
     let matchPayload: any = null;
 
     if (!user || !rec || !direction) {
@@ -544,7 +579,7 @@ export const swipeAction = async (req: Request, res: Response) => {
             sender_id: user,
             title: "New Match",
             message: `You matched with ${user1.f_name || user1.email}!`,
-            datesent: new Date(),
+            datesent: actionDate,
             is_read: false,
           });
 
@@ -553,7 +588,7 @@ export const swipeAction = async (req: Request, res: Response) => {
             sender_id: rec,
             title: "New Match",
             message: `You matched with ${user2.f_name || user2.email}!`,
-            datesent: new Date(),
+            datesent: actionDate,
             is_read: false,
           });
 
@@ -578,7 +613,7 @@ export const swipeAction = async (req: Request, res: Response) => {
             sender_id: user,
             title: "New Like",
             message: `${liker.f_name || liker.email} liked you!`,
-            datesent: new Date(),
+            datesent: actionDate,
             is_read: false,
           });
 

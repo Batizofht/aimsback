@@ -9,6 +9,25 @@ const generateOTP = (): string => {
   return Math.floor(100000 + Math.random() * 900000).toString();
 };
 
+const parseDateFromClient = (dateValue: any, clientTimestampValue: any): Date => {
+  const rawClientTs = Array.isArray(clientTimestampValue) ? clientTimestampValue[0] : clientTimestampValue;
+  if (rawClientTs !== undefined && rawClientTs !== null && String(rawClientTs).trim() !== "") {
+    const parsedTs = Number(rawClientTs);
+    if (!Number.isNaN(parsedTs) && Number.isFinite(parsedTs) && parsedTs > 0) {
+      const fromTs = new Date(parsedTs);
+      if (!Number.isNaN(fromTs.getTime())) return fromTs;
+    }
+  }
+
+  const rawDate = Array.isArray(dateValue) ? dateValue[0] : dateValue;
+  if (rawDate) {
+    const parsedDate = new Date(rawDate);
+    if (!Number.isNaN(parsedDate.getTime())) return parsedDate;
+  }
+
+  return new Date();
+};
+
 // Register User
 export const registerUser = async (req: Request, res: Response) => {
   try {
@@ -180,7 +199,8 @@ export const resendOTP = async (req: Request, res: Response) => {
 // Login User
 export const loginUser = async (req: Request, res: Response) => {
   try {
-    const { username, password } = req.body;
+    const { username, password, date, clientTimestamp } = req.body;
+    const loginAt = parseDateFromClient(date, clientTimestamp);
 
     if (!username || !password) {
       res.status(400).json({ message: "Username and password are required", status: 0 });
@@ -213,6 +233,8 @@ export const loginUser = async (req: Request, res: Response) => {
       res.status(403).json("Account not approved");
       return;
     }
+
+    await user.update({ lastActiveAt: loginAt } as any);
 
     res.status(200).json(user.id);
   } catch (error: any) {

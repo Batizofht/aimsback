@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import Notification from "../models/Notification";
 import User from "../models/User";
 import { Op } from "sequelize";
+import { sendPushNotification } from "../utils/pushNotification";
 
 // Get Notifications
 export const getNotifications = async (req: Request, res: Response) => {
@@ -155,15 +156,40 @@ export const savePushToken = async (req: Request, res: Response) => {
     }
 
     const PushToken = (await import("../models/PushToken")).default;
+    const userId = Number(user);
 
-    // Use upsert to either create or update the token
-    await PushToken.upsert({
-      user_id: user,
-      token: token,
-    }, {
-      conflictKeys: ['user_id', 'token'],
-      updateFields: ['updatedAt']
+    const [savedToken, created] = await PushToken.findOrCreate({
+      where: { user_id: userId, token: String(token) },
+      defaults: { user_id: userId, token: String(token) },
     });
+
+    if (!created) {
+      await savedToken.update({ updatedAt: new Date() } as any);
+      res.status(200).json({ message: "Token saved", status: 1 });
+      return;
+    }
+
+    const tokenCountForUser = await PushToken.count({ where: { user_id: userId } });
+
+    if (tokenCountForUser === 1) {
+      const userRecord = await User.findByPk(userId);
+      const pendingWelcome = await Notification.findOne({
+        where: {
+          user_id: userId,
+          title: "Welcome to MeIntoYou",
+        },
+        order: [['createdAt', 'DESC']],
+      });
+
+      if (userRecord && pendingWelcome && userRecord.push === 'true') {
+        await sendPushNotification(
+          userId,
+          pendingWelcome.title,
+          pendingWelcome.message,
+          { type: 'welcome' }
+        );
+      }
+    }
 
     res.status(200).json({ message: "Token saved", status: 1 });
   } catch (error: any) {

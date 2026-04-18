@@ -23,10 +23,29 @@ const isChatBlockedByFlag = async (userA: number, userB: number) => {
   return !!flagRecord;
 };
 
+const parseMessageDateFromClient = (dateValue: any, clientTimestampValue: any): Date => {
+  const rawClientTs = Array.isArray(clientTimestampValue) ? clientTimestampValue[0] : clientTimestampValue;
+  if (rawClientTs !== undefined && rawClientTs !== null && String(rawClientTs).trim() !== "") {
+    const parsedTs = Number(rawClientTs);
+    if (!Number.isNaN(parsedTs) && Number.isFinite(parsedTs) && parsedTs > 0) {
+      const fromTs = new Date(parsedTs);
+      if (!Number.isNaN(fromTs.getTime())) return fromTs;
+    }
+  }
+
+  const rawDate = Array.isArray(dateValue) ? dateValue[0] : dateValue;
+  if (rawDate) {
+    const parsedDate = new Date(rawDate);
+    if (!Number.isNaN(parsedDate.getTime())) return parsedDate;
+  }
+
+  return new Date();
+};
+
 // Send Message
 export const sendMessage = async (req: Request, res: Response) => {
   try {
-    const { user, rec, message, date, name } = req.body;
+    const { user, rec, message, date, clientTimestamp, name } = req.body;
 
     if (!user || !rec || !message) {
       res.status(400).json({ message: "User, receiver, and message are required", status: 0 });
@@ -46,7 +65,7 @@ export const sendMessage = async (req: Request, res: Response) => {
       sender_id: senderId,
       receiver_id: receiverId,
       message: message,
-      date: date ? new Date(date) : new Date(),
+      date: parseMessageDateFromClient(date, clientTimestamp),
     });
 
     // Send push notification
@@ -75,7 +94,7 @@ export const sendMessage = async (req: Request, res: Response) => {
 // Send Message with Image
 export const sendMessageImage = async (req: Request, res: Response) => {
   try {
-    const { user, too, image, date, name } = req.body;
+    const { user, too, image, date, clientTimestamp, name } = req.body;
 
     if (!user || !too || !image) {
       return res.status(400).json({
@@ -124,7 +143,7 @@ export const sendMessageImage = async (req: Request, res: Response) => {
       sender_id: senderId,
       receiver_id: receiverId,
       message: finalFilename,
-      date: date ? new Date(date) : new Date(),
+      date: parseMessageDateFromClient(date, clientTimestamp),
     });
 
     // 6️⃣ Push notification
@@ -310,6 +329,7 @@ export const getChatList = async (req: Request, res: Response) => {
 
       // If user has messages, use last message; if matched but no messages, use empty string
       const lastMessageText = lastMessage?.message || '';
+      const lastMessageTime = (lastMessage as any)?.createdAt || (lastMessage as any)?.date || null;
 
       chatList.push({
         id: chatUser.id,
@@ -319,6 +339,7 @@ export const getChatList = async (req: Request, res: Response) => {
         status: (chatUser as any).status,
         verificationStatus: chatUser.verificationStatus,
         last_message: lastMessageText,
+        last_message_time: lastMessageTime,
       });
     }
 
@@ -391,7 +412,7 @@ export const sendAudio = async (req: Request, res: Response) => {
   try {
     // multer stores file on disk and provides req.file
     const file = (req as any).file;
-    const { user, rec, date, name } = req.body;
+    const { user, rec, date, clientTimestamp, name } = req.body;
 
     console.log('sendAudio called, file present:', !!file, 'body:', { user, rec, date, name });
 
@@ -415,7 +436,7 @@ export const sendAudio = async (req: Request, res: Response) => {
       sender_id: senderId,
       receiver_id: receiverId,
       message: filename,
-      date: date ? new Date(date) : new Date(),
+      date: parseMessageDateFromClient(date, clientTimestamp),
     });
 
     // Send push notification
