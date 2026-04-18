@@ -5,6 +5,43 @@ import { Op } from "sequelize";
 import { moderateImage } from "../utils/imageModeration";
 import fs from "fs";
 import { saveTempBase64 } from "../utils/saveTempBase64";
+import Notification from "../models/Notification";
+import { sendPushNotification } from "../utils/pushNotification";
+
+const createWelcomeNotificationIfFirstApproval = async (user: any) => {
+  try {
+    if (!user?.id) return;
+
+    const existingWelcome = await Notification.findOne({
+      where: {
+        user_id: Number(user.id),
+        sender_id: Number(user.id),
+        title: "Welcome to MeIntoYou",
+      },
+    });
+
+    if (existingWelcome) return;
+
+    const firstName = (user?.f_name && String(user.f_name).trim()) ? String(user.f_name).trim() : "there";
+    const title = "Welcome to MeIntoYou";
+    const message = `Welcome ${firstName}! Your account is now approved. Complete your profile to get better matches.`;
+
+    await Notification.create({
+      user_id: Number(user.id),
+      sender_id: Number(user.id),
+      title,
+      message,
+      is_read: false,
+      datesent: new Date(),
+    });
+
+    if (user?.push === 'true') {
+      await sendPushNotification(Number(user.id), title, `Hi ${firstName}, your account is now approved!`);
+    }
+  } catch (error: any) {
+    console.error("Create first approval welcome notification error:", error);
+  }
+};
 // Update Profile
 export const updateProfile = async (req: Request, res: Response) => {
   try {
@@ -196,6 +233,7 @@ export const uploadMultipleImages = async (req: Request, res: Response) => {
     if (!userRecord) {
       return res.status(404).json("User not found");
     }
+    const wasApproved = String((userRecord as any).aproved || '').toUpperCase() === 'YES';
 
     const imageFields = ["im1", "im2", "im3", "im4"];
     const updateData: any = {};
@@ -227,6 +265,10 @@ export const uploadMultipleImages = async (req: Request, res: Response) => {
     }
 
     await userRecord.update({ progress, aproved: "YES" });
+
+    if (!wasApproved) {
+      await createWelcomeNotificationIfFirstApproval(userRecord);
+    }
 
     res.status(200).json(userRecord.id);
   } catch (error) {
