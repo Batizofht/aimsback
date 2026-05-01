@@ -2,11 +2,14 @@ import { Model, DataTypes } from "sequelize";
 import meintoyouapp from "../config/config";
 import { NotificationInterface } from "../interfaces/NotificationInterface";
 
-class NotificationInt extends Model<NotificationInterface> implements NotificationInterface {
+class NotificationInt
+  extends Model<NotificationInterface>
+  implements NotificationInterface
+{
   id!: number;
   user_id!: number;
-  sender_id!: number;
-  is_read!:boolean;
+  sender_id!: number | null;
+  is_read!: boolean;
   message!: string;
   title!: string;
   datesent?: Date;
@@ -24,16 +27,16 @@ const Notification = meintoyouapp.define<NotificationInt>(
       type: DataTypes.INTEGER,
       allowNull: false,
       references: {
-        model: 'users',
-        key: 'id',
+        model: "users",
+        key: "id",
       },
     },
     sender_id: {
       type: DataTypes.INTEGER,
-      allowNull: false,
+      allowNull: true,
       references: {
-        model: 'users',
-        key: 'id',
+        model: "users",
+        key: "id",
       },
     },
     message: {
@@ -59,8 +62,7 @@ const Notification = meintoyouapp.define<NotificationInt>(
     updatedAt: true,
     tableName: "notifications",
     timestamps: true,
-  }
+  },
 );
 
 export default Notification;
-

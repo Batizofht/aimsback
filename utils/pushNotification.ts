@@ -30,6 +30,7 @@ export const sendPushNotification = async (userId: number, title: string, body: 
         title,
         body,
         data: data || {},
+        priority: "high" as const,
       };
     }).filter((message): message is NonNullable<typeof message> => message !== null);
 
@@ -97,6 +98,7 @@ export const sendPushNotificationToToken = async (token: string, title: string, 
       title,
       body,
       data: data || {},
+      priority: "high" as const,
     };
 
     const ticket = await expo.sendPushNotificationsAsync([message]);

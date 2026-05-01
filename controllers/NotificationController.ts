@@ -20,7 +20,7 @@ export const getNotifications = async (req: Request, res: Response) => {
       include: [{
         model: User,
         as: 'sender',
-        attributes: ['id', 'f_name', 'l_name', 'profile', 'verificationStatus'],
+        attributes: ['id', 'f_name', 'l_name', 'profile', 'verificationStatus','im1'],
         required: false,
       }],
       order: [['createdAt', 'DESC']],
@@ -40,6 +40,7 @@ export const getNotifications = async (req: Request, res: Response) => {
         imageuser: data.sender?.profile,
         verificationStatus: data.sender?.verificationStatus,
         is_read: data.is_read || false,
+        im1:data.sender?.im1
       };
     });
 

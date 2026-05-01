@@ -8,7 +8,7 @@ export const generateSitemap = async (req: Request, res: Response) => {
 
     const staticPages = [
       { url: '/', priority: '1.0', changefreq: 'daily' },
-      { url: '/how-it-works', priority: '0.9', changefreq: 'weekly' },
+      { url: '/howitworks', priority: '0.9', changefreq: 'weekly' },
       { url: '/trust-safety', priority: '0.9', changefreq: 'weekly' },
       { url: '/about', priority: '0.8', changefreq: 'monthly' },
       { url: '/contact', priority: '0.7', changefreq: 'monthly' },

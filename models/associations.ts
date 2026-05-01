@@ -4,6 +4,7 @@ import Message from "./Message";
 import Notification from "./Notification";
 import PushToken from "./PushToken";
 import CallLog from "./CallLog";
+import UserPhotoReview from "./UserPhotoReview";
 
 export const defineAssociations = () => {
   // User associations
@@ -15,6 +16,7 @@ export const defineAssociations = () => {
   User.hasMany(PushToken, { foreignKey: 'user_id', as: 'pushTokens' });
   User.hasMany(CallLog, { foreignKey: 'caller_id', as: 'outgoingCalls' });
   User.hasMany(CallLog, { foreignKey: 'callee_id', as: 'incomingCalls' });
+  User.hasOne(UserPhotoReview, { foreignKey: 'userId', as: 'photoReview' });
 
   // Match associations
   Match.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
@@ -34,6 +36,9 @@ export const defineAssociations = () => {
   // CallLog associations
   CallLog.belongsTo(User, { foreignKey: 'caller_id', as: 'caller' });
   CallLog.belongsTo(User, { foreignKey: 'callee_id', as: 'callee' });
+
+  // UserPhotoReview associations
+  UserPhotoReview.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 
 };
 

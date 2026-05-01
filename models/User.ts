@@ -65,6 +65,7 @@ class UserInt extends Model<UserInterface> implements UserInterface {
   signedWithGoogle?: string;
   lastActiveAt?: Date;
   isManualLocationUpdate?: boolean;
+  photoStatus?: 'pending' | 'approved' | 'rejected';
 
   verificationStatus?: 'unverified' | 'pending' | 'verified' | 'rejected';
   verificationDocType?: string;
@@ -331,6 +332,11 @@ const User = meintoyouapp.define<UserInt, UserInterface>(
     lastActiveAt: {
       type: DataTypes.DATE,
       allowNull: true,
+    },
+    photoStatus: {
+      type: DataTypes.ENUM('pending', 'approved', 'rejected'),
+      allowNull: false,
+      defaultValue: 'pending',
     },
     status: {
       type: DataTypes.ENUM('Active', 'Offline'),

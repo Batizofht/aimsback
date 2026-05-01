@@ -62,6 +62,7 @@ export interface UserInterface {
   lastActiveAt?: Date;
   status?: 'Active' | 'Offline';
   isManualLocationUpdate?: boolean;
+  photoStatus?: 'pending' | 'approved' | 'rejected';
   verificationStatus?: 'unverified' | 'pending' | 'verified' | 'rejected';
   verificationDocType?: string;
   verificationDocFront?: string;

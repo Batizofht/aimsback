@@ -7,6 +7,7 @@ import { defineAssociations } from "./models/associations";
 import "./models/index";
 import { ContactMessage, Notification, User } from "./models/index";
 import { seedAdminIfNeeded } from "./utils/seedAdmin";
+import { setupPhotoReviewReminders } from "./cron/photoReviewReminders";
 import { Op } from "sequelize";
 
 const server = http.createServer(app);
@@ -100,6 +101,9 @@ meintoyouapp.authenticate().then(async () => {
         // Start cleanup job for inactive users
         setInterval(cleanupInactiveUsers, 60000); // Run every minute
         console.log("User status cleanup job started");
+
+        // Start photo review reminder cron job
+        setupPhotoReviewReminders();
     } catch (error: unknown) {
         const err = error as Error;
         console.error("Database sync error:", err.message);

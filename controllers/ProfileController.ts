@@ -3,10 +3,12 @@ import User from "../models/User";
 import { saveBase64Image, deleteImage } from "../utils/imageUtils";
 import { Op } from "sequelize";
 import { moderateImage } from "../utils/imageModeration";
+import { validateImages, validateSingleImage } from "../utils/imageValidation";
 import fs from "fs";
 import { saveTempBase64 } from "../utils/saveTempBase64";
 import Notification from "../models/Notification";
 import { sendPushNotification } from "../utils/pushNotification";
+import { setPhotoPending } from "../utils/photoReview";
 
 const createWelcomeNotificationIfFirstApproval = async (user: any) => {
   try {
@@ -35,9 +37,10 @@ const createWelcomeNotificationIfFirstApproval = async (user: any) => {
       datesent: new Date(),
     });
 
-    if (user?.push === 'true') {
-      await sendPushNotification(Number(user.id), title, `Hi ${firstName}, your account is now approved!`);
-    }
+    // Send push notification regardless of 'push' field setting
+    // If user has push tokens saved in DB, they should receive this critical account approval notification
+    // This ensures notifications work even if user is not currently logged in
+    await sendPushNotification(Number(user.id), title, `Hi ${firstName}, your account is now approved!`);
   } catch (error: any) {
     console.error("Create first approval welcome notification error:", error);
   }
@@ -166,11 +169,22 @@ export const updateProfilePicture = async (req: Request, res: Response) => {
     // 🔥 MODERATE BEFORE SAVING
     const tempPath = saveTempBase64(image);
     const allowed = await moderateImage(tempPath, rules);
-    fs.unlinkSync(tempPath);
 
     if (!allowed) {
+      fs.unlinkSync(tempPath);
       return res.status(400).json({
         message: "Please upload a fully clothed, respectful photo.",
+        status: 0
+      });
+    }
+
+    // 🔥 VALIDATE FACE PRESENT
+    const faceCheck = await validateSingleImage(tempPath);
+    fs.unlinkSync(tempPath);
+
+    if (!faceCheck.valid) {
+      return res.status(400).json({
+        message: faceCheck.reason || "Please upload a photo with your face visible.",
         status: 0
       });
     }
@@ -183,6 +197,9 @@ export const updateProfilePicture = async (req: Request, res: Response) => {
     // Save new profile picture
     const filename = saveBase64Image(image, "Images", "profile.jpg");
     await userRecord.update({ profile: filename });
+
+    // Set photo to pending for admin review
+    await setPhotoPending(userRecord.id);
 
     console.log(`Profile picture updated successfully: ${filename}`);
 
@@ -214,19 +231,34 @@ export const uploadMultipleImages = async (req: Request, res: Response) => {
     };
 
 
-    // 🔥 MODERATE EACH IMAGE BEFORE SAVING
-    for (let i = 0; i < images.length; i++) {
-      const tempPath = saveTempBase64(images[i]);
+    // 🔥 VALIDATE IMAGES (faces + similarity)
+    const tempPaths: string[] = [];
+    for (const img of images) {
+      tempPaths.push(saveTempBase64(img));
+    }
 
-      const allowed = await moderateImage(tempPath, rules);
-      fs.unlinkSync(tempPath);
+    const validation = await validateImages(tempPaths);
+    if (!validation.valid) {
+      tempPaths.forEach(p => { try { fs.unlinkSync(p); } catch {} });
+      return res.status(400).json({
+        success: false,
+        message: validation.reason
+      });
+    }
+
+    // 🔥 MODERATE EACH IMAGE
+    for (let i = 0; i < images.length; i++) {
+      const allowed = await moderateImage(tempPaths[i], rules);
 
       if (!allowed) {
+        tempPaths.forEach((p, idx) => { if (idx !== i) try { fs.unlinkSync(p); } catch {} });
         return res.status(400).json({
           message: "One or more images are not allowed. Please upload respectful photos only."
         });
       }
     }
+
+    tempPaths.forEach(p => { try { fs.unlinkSync(p); } catch {} });
 
     // 🔽 EXISTING LOGIC CONTINUES (UNCHANGED)
     const userRecord = await User.findOne({ where: { email: userEmail } });
@@ -258,6 +290,9 @@ export const uploadMultipleImages = async (req: Request, res: Response) => {
     if (Object.keys(updateData).length > 0) {
       await userRecord.update(updateData);
     }
+
+    // Set photo to pending for admin review
+    await setPhotoPending(userRecord.id);
 
     let progress = userRecord.progress || 0;
     if (updateData.im1 && updateData.im2 && updateData.im3 && updateData.im4) {

@@ -66,6 +66,9 @@ import {
   adminUserGrowth,
   adminWarnReportedUser,
   adminBlockReportedUser,
+  adminListPendingPhotos,
+  adminListRejectedPhotos,
+  adminReviewPhoto,
 } from "../controllers/AdminController";
 import {
   adminAutosaveBlog,
@@ -245,6 +248,11 @@ UserRoute.get("/verification/status", getMyVerificationStatus);
 // Verification (admin)
 UserRoute.get("/admin/verification", requireAdmin, adminListVerification);
 UserRoute.post("/admin/verification/:id/review", requireAdmin, upload.none(), adminReviewVerification);
+
+// Photo review (admin)
+UserRoute.get("/admin/photos/pending", requireAdmin, adminListPendingPhotos);
+UserRoute.get("/admin/photos/rejected", requireAdmin, adminListRejectedPhotos);
+UserRoute.post("/admin/photos/:id/review", requireAdmin, upload.none(), adminReviewPhoto);
 
 // File retrieval
 // Serve message images

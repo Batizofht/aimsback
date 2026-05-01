@@ -1,9 +1,9 @@
 export interface NotificationInterface {
   id?: number;
   user_id: number;
-  sender_id: number;
+  sender_id: number | null;
   message: string;
-  is_read:boolean;
+  is_read: boolean;
   title: string;
   datesent?: Date;
   createdAt?: Date;
@@ -13,7 +13,6 @@ export interface NotificationInterface {
     f_name?: string;
     l_name?: string;
     profile?: string;
-    verificationStatus?: 'unverified' | 'pending' | 'verified' | 'rejected';
+    verificationStatus?: "unverified" | "pending" | "verified" | "rejected";
   };
 }
-

@@ -74,33 +74,17 @@ export async function moderateImage(
       block("Porn + excessive skin");
     }
 
-    if (sexy > 0.55 && (skinAnalysis.bodySkinRatio > 0.25 || (!skinAnalysis.hasFace && skinAnalysis.totalSkinRatio > 0.25)) && !rules?.allowShirtless) {
-      block("High sexy + skin exposure");
-    }
-
-    if (sexy > 0.42 && !skinAnalysis.hasFace && skinAnalysis.totalSkinRatio > 0.22 && !rules?.allowShirtless) {
-      block("Moderate sexy + overall skin (no face)");
-    }
-
-    if (porn > 0.48 && sexy > 0.45 && !skinAnalysis.hasFace) {
-      block("Porn+sexy (no face)");
-    }
-
-    if (porn > 0.48 && sexy > 0.4 && skinAnalysis.bodySkinRatio > 0.4) {
-      block("Porn+sexy + high skin");
-    }
-
-    if (porn > 0.3 && skinAnalysis.bodySkinRatio > 0.45 && skinAnalysis.totalSkinRatio > 0.35 && !skinAnalysis.hasFace) {
-      block("Moderate porn + high skin");
+    // ULTRA RELAXED: Only block extreme cases - human review handles the rest
+    // Tier 1: Only block 95%+ sexy (almost certainly lingerie/nude)
+    // Allow revealing/sexy photos - they go to human review
+    if (sexy > 0.95 && skinAnalysis.totalSkinRatio > 0.15 && !rules?.allowShirtless) {
+      block("Extreme sexy score - likely inappropriate");
+    } else if (sexy > 0.85 && !skinAnalysis.hasFace && skinAnalysis.totalSkinRatio > 0.40 && !rules?.allowShirtless) {
+      block("High sexy + skin (no face detected)");
     }
 
     if (hasExplicitPatterns && (skinAnalysis.bodySkinRatio > 0.35 || skinAnalysis.totalSkinRatio > 0.55)) {
       block("Explicit patterns + skin exposure");
-    }
-
-    // If very high sexy score AND lots of skin, likely inappropriate
-    if (sexy > 0.8 && skinAnalysis.bodySkinRatio > 0.4) {
-      block("Suggestive + excessive skin");
     }
 
     // Strong signal of normal image (do NOT early-return; just mark as likely safe)

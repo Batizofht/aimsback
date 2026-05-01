@@ -7,7 +7,7 @@ import { calculateDistance } from "../utils/distance";
 import { Op } from "sequelize";
 import { sendPushNotification } from "../utils/pushNotification";
 import Notification from "../models/Notification";
-
+import { queueOrSendNotification } from "../utils/photoReview";
 
 //////////////////////////////THESE CODES HAVE BEEN WRITTEN FROM SCRATCH AND NON AI RELATED /////////////////////////////////
 /**
@@ -21,18 +21,17 @@ const toNumberOrUndefined = (value: any): number | undefined => {
 };
 
 const toTrimmedLower = (value: any): string => {
-  if (typeof value !== 'string') return '';
+  if (typeof value !== "string") return "";
   return value.trim().toLowerCase();
 };
 
 const parseInterestList = (value: any): string[] => {
-  if (typeof value !== 'string') return [];
+  if (typeof value !== "string") return [];
   return value
-    .split(',')
+    .split(",")
     .map((i) => i.trim().toLowerCase())
     .filter(Boolean);
 };
-
 
 // fht:explaining the codes <||> Purpose: Calculates how many interests two users share. Used for matching algorithms.
 const computeInterestOverlapCount = (a: any, b: any): number => {
@@ -47,7 +46,10 @@ const computeInterestOverlapCount = (a: any, b: any): number => {
   return count;
 };
 
-const computeCandidateDistanceKm = (currentUser: any, candidate: any): number => {
+const computeCandidateDistanceKm = (
+  currentUser: any,
+  candidate: any,
+): number => {
   const lat1 = toNumberOrUndefined(currentUser.lats);
   const lon1 = toNumberOrUndefined(currentUser.longs);
   const lat2 = toNumberOrUndefined(candidate.lats);
@@ -64,33 +66,41 @@ const computeCandidateDistanceKm = (currentUser: any, candidate: any): number =>
 const calculateAge = (years: any): number | undefined => {
   const yearValue = toNumberOrUndefined(years);
   if (yearValue == null) return undefined;
-  
+
   const currentYear = new Date().getFullYear();
-  
-  // If years is already an age (< 120), return it, any way this is almost imposible 
+
+  // If years is already an age (< 120), return it, any way this is almost imposible
   // except if the user has bypassed all the onboarding checkings and verifications
   if (yearValue < 120) return yearValue;
-  
+
   // If years is a birth year (> 1900), calculate age
   if (yearValue > 1900) return currentYear - yearValue;
-  
+
   return undefined;
 };
 // Compute a relevance score for sorting candidates.
 // Higher score = better match. Combines distance, interest overlap, age preference, recent activity, and profile completeness.
-const computeMatchScore = (currentUser: any, candidate: any, distanceKm: number): number => {
+const computeMatchScore = (
+  currentUser: any,
+  candidate: any,
+  distanceKm: number,
+): number => {
   // weights (tweakable)
   const WEIGHT_DISTANCE = 0.35;
   const WEIGHT_INTEREST = 0.25;
   const WEIGHT_AGE = 0.15;
   const WEIGHT_ACTIVITY = 0.15;
-  const WEIGHT_PROFILE = 0.10;
+  const WEIGHT_PROFILE = 0.1;
 
   // Distance factor: closer is better. Use 1 / (1 + km) to decay.
-  const distanceFactor = Number.isFinite(distanceKm) && distanceKm >= 0 ? (1 / (1 + distanceKm)) : 0;
+  const distanceFactor =
+    Number.isFinite(distanceKm) && distanceKm >= 0 ? 1 / (1 + distanceKm) : 0;
 
   // Interest overlap count normalized by average number of interests (avoid divide by zero)
-  const overlap = computeInterestOverlapCount(currentUser.interest, candidate.interest);
+  const overlap = computeInterestOverlapCount(
+    currentUser.interest,
+    candidate.interest,
+  );
   const currentCount = parseInterestList(currentUser.interest).length || 1;
   const candidateCount = parseInterestList(candidate.interest).length || 1;
   const avgCount = Math.max(1, (currentCount + candidateCount) / 2);
@@ -102,7 +112,7 @@ const computeMatchScore = (currentUser: any, candidate: any, distanceKm: number)
   let ageFactor = 0.5; // neutral
   const candAge = toNumberOrUndefined(candidate.years);
   if (minAge != null && maxAge != null && candAge != null) {
-    ageFactor = (candAge >= minAge && candAge <= maxAge) ? 1 : 0.2;
+    ageFactor = candAge >= minAge && candAge <= maxAge ? 1 : 0.2;
   }
 
   // Activity: recent lastActiveAt -> boost
@@ -120,54 +130,66 @@ const computeMatchScore = (currentUser: any, candidate: any, distanceKm: number)
   // Profile completeness: images + profile text
   let profileCompleteness = 0;
   if (candidate.profile) profileCompleteness += 0.6;
-  const images = ['im1','im2','im3','im4'].filter(k => candidate[k]).length;
+  const images = ["im1", "im2", "im3", "im4"].filter(
+    (k) => candidate[k],
+  ).length;
   profileCompleteness += Math.min(images / 4, 1) * 0.4;
 
   // final score normalized to ~0..1
-  const score = (
+  const score =
     WEIGHT_DISTANCE * distanceFactor +
     WEIGHT_INTEREST * interestFactor +
     WEIGHT_AGE * ageFactor +
     WEIGHT_ACTIVITY * activityFactor +
-    WEIGHT_PROFILE * profileCompleteness
-  );
+    WEIGHT_PROFILE * profileCompleteness;
 
   // Add very small jitter to avoid deterministic ordering
-  return score + (Math.random() * 0.0001);
+  return score + Math.random() * 0.0001;
 };
 
 export const getPotentialMatches = async (req: Request, res: Response) => {
   try {
-    const { 
-      owner, 
-      email, 
-      from,        // Min age preference
-      to,          // Max age preference
-      wanttosee,   // Gender preference (MANDATORY)
-      interest,    // Interest preference
-      distance,    // Max distance preference
-      fors,        // Relationship type preference
+    const {
+      owner,
+      email,
+      from, // Min age preference
+      to, // Max age preference
+      wanttosee, // Gender preference (MANDATORY)
+      interest, // Interest preference
+      distance, // Max distance preference
+      fors, // Relationship type preference
       Orientation, // Orientation preference
-      country,     // Country preference
-      city         // City preference
-    } = req.method === 'POST' ? req.body : req.query;
+      country, // Country preference
+      city, // City preference
+    } = req.method === "POST" ? req.body : req.query;
 
-
-// THIS CONSOSLES ARE JUST FOR TESTING DURING DEVELOPMENT
-///////////////////////////////////////////////////////////
-    console.log('[PotentialMatches] Request params:', {
-      owner, email, from, to, wanttosee, interest, distance, fors, Orientation, country, city
+    // THIS CONSOSLES ARE JUST FOR TESTING DURING DEVELOPMENT
+    ///////////////////////////////////////////////////////////
+    console.log("[PotentialMatches] Request params:", {
+      owner,
+      email,
+      from,
+      to,
+      wanttosee,
+      interest,
+      distance,
+      fors,
+      Orientation,
+      country,
+      city,
     });
-/////////////////////////////////////////////////////////////
-
-
+    /////////////////////////////////////////////////////////////
 
     if (!owner || !email) {
-      res.status(400).json({ message: "Owner and email are required", status: 0 });
+      res
+        .status(400)
+        .json({ message: "Owner and email are required", status: 0 });
       return;
     }
 
-    const currentUser = await User.findOne({where:{ id: owner, email: email }});
+    const currentUser = await User.findOne({
+      where: { id: owner, email: email },
+    });
     if (!currentUser) {
       res.status(404).json({ message: "User not found", status: 0 });
       return;
@@ -176,29 +198,33 @@ export const getPotentialMatches = async (req: Request, res: Response) => {
     // Get users that current user has already swiped on
     const swipedUsers = await Match.findAll({
       where: { user_id: owner },
-      attributes: ['matched_user_id'],
+      attributes: ["matched_user_id"],
     });
-    const swipedUserIds = swipedUsers.map(m => m.matched_user_id);
+    const swipedUserIds = swipedUsers.map((m) => m.matched_user_id);
 
     // ===== STEP 1: MANDATORY BASE CONDITIONS =====
     // Only apply GENDER as a hard SQL filter
     // Everything else will be handled through prioritized filtering
     const baseConditions: any = {
       id: { [Op.and]: [{ [Op.ne]: owner }, { [Op.notIn]: swipedUserIds }] },
-      aproved: 'YES',
+      aproved: "YES",
       IsVerified: true,
       isBlocked: false,
       tester: false, // Exclude test accounts from matching (for fht<||>)
+      photoStatus: "approved", // Only show approved photos
     };
 
     // MANDATORY: Gender filter (wanttosee) - this is the ONLY hard filter
     if (!wanttosee) {
-      res.status(400).json({ message: "wanttosee (gender preference) is required", status: 0 });
+      res.status(400).json({
+        message: "wanttosee (gender preference) is required",
+        status: 0,
+      });
       return;
     }
     baseConditions.gender = wanttosee;
 
-    console.log('[PotentialMatches] Base conditions:', baseConditions);
+    console.log("[PotentialMatches] Base conditions:", baseConditions);
 
     // Fetch all potential matches with mandatory gender filter only
     let allMatches = await User.findAll({
@@ -206,7 +232,8 @@ export const getPotentialMatches = async (req: Request, res: Response) => {
       limit: 1000,
     });
 
-    console.log('[PotentialMatches] After gender filter:', allMatches.length);
+  
+    console.log("[PotentialMatches] After gender filter:", allMatches.length);
 
     if (allMatches.length === 0) {
       res.status(200).json([]);
@@ -216,200 +243,252 @@ export const getPotentialMatches = async (req: Request, res: Response) => {
     // ===== STEP 2: ENRICH DATA WITH COMPUTED VALUES =====
     const maxDistanceKm = toNumberOrUndefined(distance);
 
-
-  // fht:explaining the codes <||> Purpose: Set age range bounds with priority fallback chain using nullish coalescing (??).
-  // Logic: 1) Use explicit request param (from/to) if provided | 2) Fall back to user's saved preferences (ages/secondages) | 3) Default to 18-100 if neither set.
-  // Note: ?? only falls back for null/undefined, not 0 - so age 0 is valid unlike || which would treat 0 as falsy.
-  const minAge = toNumberOrUndefined(from) ?? toNumberOrUndefined(currentUser.ages) ?? 18;
-  const maxAge = toNumberOrUndefined(to) ?? toNumberOrUndefined(currentUser.secondages) ?? 100;
-
+    // fht:explaining the codes <||> Purpose: Set age range bounds with priority fallback chain using nullish coalescing (??).
+    // Logic: 1) Use explicit request param (from/to) if provided | 2) Fall back to user's saved preferences (ages/secondages) | 3) Default to 18-100 if neither set.
+    // Note: ?? only falls back for null/undefined, not 0 - so age 0 is valid unlike || which would treat 0 as falsy.
+    const minAge =
+      toNumberOrUndefined(from) ?? toNumberOrUndefined(currentUser.ages) ?? 18;
+    const maxAge =
+      toNumberOrUndefined(to) ??
+      toNumberOrUndefined(currentUser.secondages) ??
+      100;
 
     const requestedCity = toTrimmedLower(city);
     const requestedCountry = toTrimmedLower(country);
-    const requestedInterests = parseInterestList(interest || currentUser.interest);
+    const requestedInterests = parseInterestList(
+      interest || currentUser.interest,
+    );
     const requestedOrientation = toTrimmedLower(Orientation);
     const requestedFors = toTrimmedLower(fors);
-    
+
     // Get current user's location as fallback
     const currentUserCity = toTrimmedLower(currentUser.city);
     const currentUserCountry = toTrimmedLower(currentUser.country);
 
     const enrichedMatches = allMatches.map((match) => {
       const m: any = match.toJSON();
-      
+
       // Calculate distance
       m.computedDistance = computeCandidateDistanceKm(currentUser, m);
-      
+
       // Calculate age
       m.computedAge = calculateAge(m.years);
-      
+
       // Check age range match
-      m.ageMatch = m.computedAge != null && m.computedAge >= minAge && m.computedAge <= maxAge;
-      
+      m.ageMatch =
+        m.computedAge != null &&
+        m.computedAge >= minAge &&
+        m.computedAge <= maxAge;
+
       // Check location matches
       const candCity = toTrimmedLower(m.city);
       const candCountry = toTrimmedLower(m.country);
-      
+
       // Use requested city/country, fallback to current user's location
-      const targetCity = requestedCity && requestedCity !== 'null' ? requestedCity : currentUserCity;
-      const targetCountry = requestedCountry && requestedCountry !== 'null' ? requestedCountry : currentUserCountry;
-      
+      const targetCity =
+        requestedCity && requestedCity !== "null"
+          ? requestedCity
+          : currentUserCity;
+      const targetCountry =
+        requestedCountry && requestedCountry !== "null"
+          ? requestedCountry
+          : currentUserCountry;
+
       m.cityMatch = targetCity && candCity ? candCity === targetCity : false;
-      m.countryMatch = targetCountry && candCountry ? candCountry === targetCountry : false;
-      
+      m.countryMatch =
+        targetCountry && candCountry ? candCountry === targetCountry : false;
+
       // Check distance match
-      m.distanceMatch = maxDistanceKm != null && m.computedDistance !== Infinity 
-        ? m.computedDistance <= maxDistanceKm 
-        : null; // null means no distance preference or coords missing
-      
+      m.distanceMatch =
+        maxDistanceKm != null && m.computedDistance !== Infinity
+          ? m.computedDistance <= maxDistanceKm
+          : null; // null means no distance preference or coords missing
+
       // Check orientation match
       const candOrientation = toTrimmedLower(m.Orientation);
-      m.orientationMatch = requestedOrientation && requestedOrientation !== 'null'
-        ? candOrientation === requestedOrientation
-        : true; // If no orientation specified, consider all as match
-      
+      m.orientationMatch =
+        requestedOrientation && requestedOrientation !== "null"
+          ? candOrientation === requestedOrientation
+          : true; // If no orientation specified, consider all as match
+
       // Check relationship type match
       const candFors = toTrimmedLower(m.fors);
-      m.forsMatch = requestedFors && requestedFors !== 'null'
-        ? candFors === requestedFors
-        : true; // If no fors specified, consider all as match
-      
+      m.forsMatch =
+        requestedFors && requestedFors !== "null"
+          ? candFors === requestedFors
+          : true; // If no fors specified, consider all as match
+
       // Calculate interest overlap
-      m.interestOverlap = requestedInterests.length > 0 
-        ? computeInterestOverlapCount(interest || currentUser.interest, m.interest)
-        : 0;
-      
+      m.interestOverlap =
+        requestedInterests.length > 0
+          ? computeInterestOverlapCount(
+              interest || currentUser.interest,
+              m.interest,
+            )
+          : 0;
+
       return m;
     });
 
     // ===== STEP 3: PRIORITIZED FILTERING =====
-    
+
     // Priority 1: Orientation + Fors + Same city + age range + distance
-    let filteredMatches = enrichedMatches.filter(m => 
-      m.orientationMatch &&
-      m.forsMatch &&
-      m.cityMatch && 
-      m.ageMatch && 
-      (m.distanceMatch === true || m.distanceMatch === null)
+    let filteredMatches = enrichedMatches.filter(
+      (m) =>
+        m.orientationMatch &&
+        m.forsMatch &&
+        m.cityMatch &&
+        m.ageMatch &&
+        (m.distanceMatch === true || m.distanceMatch === null),
     );
-    console.log('[Priority 1] Orientation + Fors + Same city + age + distance:', filteredMatches.length);
+    console.log(
+      "[Priority 1] Orientation + Fors + Same city + age + distance:",
+      filteredMatches.length,
+    );
 
     // Priority 2: Orientation + Fors + Same country + age range + distance
     if (filteredMatches.length === 0) {
-      filteredMatches = enrichedMatches.filter(m => 
-        m.orientationMatch &&
-        m.forsMatch &&
-        m.countryMatch && 
-        m.ageMatch && 
-        (m.distanceMatch === true || m.distanceMatch === null)
+      filteredMatches = enrichedMatches.filter(
+        (m) =>
+          m.orientationMatch &&
+          m.forsMatch &&
+          m.countryMatch &&
+          m.ageMatch &&
+          (m.distanceMatch === true || m.distanceMatch === null),
       );
-      console.log('[Priority 2] Orientation + Fors + Same country + age + distance:', filteredMatches.length);
+      console.log(
+        "[Priority 2] Orientation + Fors + Same country + age + distance:",
+        filteredMatches.length,
+      );
     }
 
     // Priority 3: Orientation + Fors + Age range + distance (any location)
     if (filteredMatches.length === 0) {
-      filteredMatches = enrichedMatches.filter(m => 
-        m.orientationMatch &&
-        m.forsMatch &&
-        m.ageMatch && 
-        (m.distanceMatch === true || m.distanceMatch === null)
+      filteredMatches = enrichedMatches.filter(
+        (m) =>
+          m.orientationMatch &&
+          m.forsMatch &&
+          m.ageMatch &&
+          (m.distanceMatch === true || m.distanceMatch === null),
       );
-      console.log('[Priority 3] Orientation + Fors + Age + distance:', filteredMatches.length);
+      console.log(
+        "[Priority 3] Orientation + Fors + Age + distance:",
+        filteredMatches.length,
+      );
     }
 
     // Priority 4: Orientation + Age range + distance (relax fors)
     if (filteredMatches.length === 0) {
-      filteredMatches = enrichedMatches.filter(m => 
-        m.orientationMatch &&
-        m.ageMatch && 
-        (m.distanceMatch === true || m.distanceMatch === null)
+      filteredMatches = enrichedMatches.filter(
+        (m) =>
+          m.orientationMatch &&
+          m.ageMatch &&
+          (m.distanceMatch === true || m.distanceMatch === null),
       );
-      console.log('[Priority 4] Orientation + Age + distance (relaxed fors):', filteredMatches.length);
+      console.log(
+        "[Priority 4] Orientation + Age + distance (relaxed fors):",
+        filteredMatches.length,
+      );
     }
 
     // Priority 5: Age range + distance (relax orientation and fors)
     if (filteredMatches.length === 0) {
-      filteredMatches = enrichedMatches.filter(m => 
-        m.ageMatch && 
-        (m.distanceMatch === true || m.distanceMatch === null)
+      filteredMatches = enrichedMatches.filter(
+        (m) =>
+          m.ageMatch && (m.distanceMatch === true || m.distanceMatch === null),
       );
-      console.log('[Priority 5] Age + distance (relaxed orientation & fors):', filteredMatches.length);
+      console.log(
+        "[Priority 5] Age + distance (relaxed orientation & fors):",
+        filteredMatches.length,
+      );
     }
 
     // Priority 6: Age range only (ignore distance)
     if (filteredMatches.length === 0) {
-      filteredMatches = enrichedMatches.filter(m => m.ageMatch);
-      console.log('[Priority 6] Age only:', filteredMatches.length);
+      filteredMatches = enrichedMatches.filter((m) => m.ageMatch);
+      console.log("[Priority 6] Age only:", filteredMatches.length);
     }
 
     // Priority 7: Distance + interests (relax age)
     if (filteredMatches.length === 0) {
-      filteredMatches = enrichedMatches.filter(m => 
-        (m.distanceMatch === true || m.distanceMatch === null) && 
-        m.interestOverlap > 0
+      filteredMatches = enrichedMatches.filter(
+        (m) =>
+          (m.distanceMatch === true || m.distanceMatch === null) &&
+          m.interestOverlap > 0,
       );
-      console.log('[Priority 7] Distance + interests (relaxed age):', filteredMatches.length);
+      console.log(
+        "[Priority 7] Distance + interests (relaxed age):",
+        filteredMatches.length,
+      );
     }
 
     // Priority 8: Interests only (relax everything except gender)
     if (filteredMatches.length === 0) {
-      filteredMatches = enrichedMatches.filter(m => m.interestOverlap > 0);
-      console.log('[Priority 8] Interests only:', filteredMatches.length);
+      filteredMatches = enrichedMatches.filter((m) => m.interestOverlap > 0);
+      console.log("[Priority 8] Interests only:", filteredMatches.length);
     }
 
     // Priority 9: Return all remaining matches (only gender filter applied)
     if (filteredMatches.length === 0) {
       filteredMatches = enrichedMatches;
-      console.log('[Priority 9] All matches (gender only):', filteredMatches.length);
+      console.log(
+        "[Priority 9] All matches (gender only):",
+        filteredMatches.length,
+      );
     }
 
     // ===== STEP 4: SORTING BY RELEVANCE =====
     filteredMatches.sort((a, b) => {
       // 1. Orientation match first
-      if (a.orientationMatch !== b.orientationMatch) return b.orientationMatch ? 1 : -1;
-      
+      if (a.orientationMatch !== b.orientationMatch)
+        return b.orientationMatch ? 1 : -1;
+
       // 2. Relationship type match second
       if (a.forsMatch !== b.forsMatch) return b.forsMatch ? 1 : -1;
-      
+
       // 3. City match third
       if (a.cityMatch !== b.cityMatch) return b.cityMatch ? 1 : -1;
-      
+
       // 4. Country match fourth
       if (a.countryMatch !== b.countryMatch) return b.countryMatch ? 1 : -1;
-      
+
       // 5. Age match fifth
       if (a.ageMatch !== b.ageMatch) return b.ageMatch ? 1 : -1;
-      
+
       // 6. Distance sixth (closer is better)
-      const distA = a.computedDistance !== Infinity ? a.computedDistance : 999999;
-      const distB = b.computedDistance !== Infinity ? b.computedDistance : 999999;
+      const distA =
+        a.computedDistance !== Infinity ? a.computedDistance : 999999;
+      const distB =
+        b.computedDistance !== Infinity ? b.computedDistance : 999999;
       if (distA !== distB) return distA - distB;
-      
+
       // 7. Interest overlap seventh
-      if (a.interestOverlap !== b.interestOverlap) return b.interestOverlap - a.interestOverlap;
-      
+      if (a.interestOverlap !== b.interestOverlap)
+        return b.interestOverlap - a.interestOverlap;
+
       // 8. Profile completeness (images)
-      const imagesA = ['im1','im2','im3','im4'].filter(k => a[k]).length;
-      const imagesB = ['im1','im2','im3','im4'].filter(k => b[k]).length;
+      const imagesA = ["im1", "im2", "im3", "im4"].filter((k) => a[k]).length;
+      const imagesB = ["im1", "im2", "im3", "im4"].filter((k) => b[k]).length;
       if (imagesA !== imagesB) return imagesB - imagesA;
-      
+
       return 0;
     });
 
     // ===== STEP 5: FORMAT AND RETURN =====
-    const finalMatches = filteredMatches.slice(0, 50).map(m => {
+    const finalMatches = filteredMatches.slice(0, 50).map((m) => {
       // Remove sensitive data
       delete m.password;
       delete m.OTP;
       delete m.OTPExpiry;
-      
+
       // Format response
       return {
         ...m,
         age: m.computedAge,
-        distance: m.computedDistance !== Infinity 
-          ? Number(m.computedDistance.toFixed(2)) 
-          : null,
+        distance:
+          m.computedDistance !== Infinity
+            ? Number(m.computedDistance.toFixed(2))
+            : null,
         status: m.status,
         // Remove temporary fields
         computedDistance: undefined,
@@ -423,12 +502,17 @@ export const getPotentialMatches = async (req: Request, res: Response) => {
         interestOverlap: undefined,
       };
     });
-    console.log('[PotentialMatches] Returning:', finalMatches.length, 'matches');
+    console.log(
+      "[PotentialMatches] Returning:",
+      finalMatches.length,
+      "matches",
+    );
     res.status(200).json(finalMatches);
-
   } catch (error: any) {
     console.error("Get potential matches error:", error);
-    res.status(500).json({ message: "Server error", status: 0, error: error.message });
+    res
+      .status(500)
+      .json({ message: "Server error", status: 0, error: error.message });
   }
 };
 
@@ -448,9 +532,18 @@ export const getSafeCurrentUserId = (req: Request): number | null => {
   }
 };
 
-const parseDateFromClient = (dateValue: any, clientTimestampValue: any): Date => {
-  const rawClientTs = Array.isArray(clientTimestampValue) ? clientTimestampValue[0] : clientTimestampValue;
-  if (rawClientTs !== undefined && rawClientTs !== null && String(rawClientTs).trim() !== "") {
+const parseDateFromClient = (
+  dateValue: any,
+  clientTimestampValue: any,
+): Date => {
+  const rawClientTs = Array.isArray(clientTimestampValue)
+    ? clientTimestampValue[0]
+    : clientTimestampValue;
+  if (
+    rawClientTs !== undefined &&
+    rawClientTs !== null &&
+    String(rawClientTs).trim() !== ""
+  ) {
     const parsedTs = Number(rawClientTs);
     if (!Number.isNaN(parsedTs) && Number.isFinite(parsedTs) && parsedTs > 0) {
       const fromTs = new Date(parsedTs);
@@ -474,16 +567,18 @@ export const swipeAction = async (req: Request, res: Response) => {
     let matchPayload: any = null;
 
     if (!user || !rec || !direction) {
-      res.status(400).json({ message: "User, rec, and direction are required", status: 0 });
+      res
+        .status(400)
+        .json({ message: "User, rec, and direction are required", status: 0 });
       return;
     }
 
-    if (direction === 'flag_status') {
+    if (direction === "flag_status") {
       const flagRecord = await Match.findOne({
         where: {
           user_id: user,
           matched_user_id: rec,
-          status: 'flag',
+          status: "flag",
         },
       });
 
@@ -491,25 +586,27 @@ export const swipeAction = async (req: Request, res: Response) => {
       return;
     }
 
-    if (direction === 'unflag') {
+    if (direction === "unflag") {
       const deletedCount = await Match.destroy({
         where: {
           user_id: user,
           matched_user_id: rec,
-          status: 'flag',
+          status: "flag",
         },
       });
 
-      res.status(200).json({ status: 1, message: 'Flag removed', deletedCount });
+      res
+        .status(200)
+        .json({ status: 1, message: "Flag removed", deletedCount });
       return;
     }
 
-    if (direction === 'flag') {
+    if (direction === "flag") {
       const existingFlag = await Match.findOne({
         where: {
           user_id: user,
           matched_user_id: rec,
-          status: 'flag',
+          status: "flag",
         },
       });
 
@@ -517,21 +614,21 @@ export const swipeAction = async (req: Request, res: Response) => {
         await Match.create({
           user_id: user,
           matched_user_id: rec,
-          status: 'flag',
+          status: "flag",
         });
       }
 
-      res.status(200).json({ status: 1, message: 'User flagged' });
+      res.status(200).json({ status: 1, message: "User flagged" });
       return;
     }
 
-    const status = direction === 'right' ? 'like' : 'pass';
+    const status = direction === "right" ? "like" : "pass";
 
     const existingMatch = await Match.findOne({
       where: {
         user_id: user,
         matched_user_id: rec,
-        status: { [Op.in]: ['like', 'pass', 'super_like'] },
+        status: { [Op.in]: ["like", "pass", "super_like"] },
       },
     });
 
@@ -545,12 +642,12 @@ export const swipeAction = async (req: Request, res: Response) => {
       });
     }
 
-    if (status === 'like') {
+    if (status === "like") {
       const mutualMatch = await Match.findOne({
         where: {
           user_id: rec,
           matched_user_id: user,
-          status: 'like',
+          status: "like",
         },
       });
 
@@ -565,66 +662,113 @@ export const swipeAction = async (req: Request, res: Response) => {
               f_name: user1.f_name,
               l_name: user1.l_name,
               profile: user1.profile,
+              im1:user1.im1
             },
             matchedUser: {
               id: user2.id,
               f_name: user2.f_name,
               l_name: user2.l_name,
               profile: user2.profile,
+              im1:user2.im1
             },
           };
 
-          await Notification.create({
-            user_id: rec,
-            sender_id: user,
-            title: "New Match",
-            message: `You matched with ${user1.f_name || user1.email}!`,
-            datesent: actionDate,
-            is_read: false,
+          // Queue or send match notifications based on photo status
+          const recQueued = await queueOrSendNotification(Number(rec), {
+            type: "match",
+            fromUserId: Number(user),
           });
-
-          await Notification.create({
-            user_id: user,
-            sender_id: rec,
-            title: "New Match",
-            message: `You matched with ${user2.f_name || user2.email}!`,
-            datesent: actionDate,
-            is_read: false,
-          });
-
-          if (user2.push === 'true') {
-            await sendPushNotification(Number(rec), "New Match", `You matched with ${user1.f_name || user1.email}!`);
+          if (!recQueued) {
+            await Notification.create({
+              user_id: rec,
+              sender_id: user,
+              title: "New Match",
+              message: `You matched with ${user1.f_name || user1.email}!`,
+              datesent: actionDate,
+              is_read: false,
+            });
+            if (user2.push === "true") {
+              await sendPushNotification(
+                Number(rec),
+                "New Match",
+                `You matched with ${user1.f_name || user1.email}!`,
+              );
+            }
           }
-          if (user1.push === 'true') {
-            await sendPushNotification(Number(user), "New Match", `You matched with ${user2.f_name || user2.email}!`);
+
+          const userQueued = await queueOrSendNotification(Number(user), {
+            type: "match",
+            fromUserId: Number(rec),
+          });
+          if (!userQueued) {
+            await Notification.create({
+              user_id: user,
+              sender_id: rec,
+              title: "New Match",
+              message: `You matched with ${user2.f_name || user2.email}!`,
+              datesent: actionDate,
+              is_read: false,
+            });
+            if (user1.push === "true") {
+              await sendPushNotification(
+                Number(user),
+                "New Match",
+                `You matched with ${user2.f_name || user2.email}!`,
+              );
+            }
           }
         }
       } else {
         const liker = await User.findByPk(user);
         const liked = await User.findByPk(rec);
 
-        if (liked) {
+        // Only update newlikes flag and send notification if the liker is
+        // fully approved. Rejected/pending likers are invisible in the likes
+        // list (getAllLikes filters them out), so notifying the recipient
+        // creates ghost notifications — they see "New Like" but no card.
+        const likerApproved =
+          liker &&
+          (liker as any).photoStatus === "approved" &&
+          (liker as any).IsVerified === true &&
+          String((liker as any).aproved ?? "").toUpperCase() === "YES" &&
+          !(liker as any).isBlocked;
+
+        if (liked && likerApproved) {
           await liked.update({ newlikes: true });
         }
 
-        if (liker && liked ) {
-          await Notification.create({
-            user_id: rec,
-            sender_id: user,
-            title: "New Like",
-            message: `${liker.f_name || liker.email} liked you!`,
-            datesent: actionDate,
-            is_read: false,
+        if (liker && liked && likerApproved) {
+          const likeQueued = await queueOrSendNotification(Number(rec), {
+            type: "like",
+            fromUserId: Number(user),
           });
-
-          if (liked.push === 'true') {
-            await sendPushNotification(Number(rec), "New Like", `${liker.f_name || liker.email} liked you!`);
+          if (!likeQueued) {
+            await Notification.create({
+              user_id: rec,
+              sender_id: user,
+              title: "New Like",
+              message: `${liker.f_name || liker.email} liked you!`,
+              datesent: actionDate,
+              is_read: false,
+            });
+            if (liked.push === "true") {
+              await sendPushNotification(
+                Number(rec),
+                "New Like",
+                `${liker.f_name || liker.email} liked you!`,
+              );
+            }
           }
         }
       }
     }
 
-    res.status(200).json({ message: "Swipe recorded", status: 1, matched: !!matchPayload, match: matchPayload });
+    res.status(200).json({
+      message: "Swipe recorded",
+      status: 1,
+      matched: !!matchPayload,
+      match: matchPayload,
+    });
   } catch (error: any) {
     console.error("Swipe action error:", error);
     res.status(500).json({ message: "Server error", status: 0 });
@@ -645,14 +789,25 @@ export const getMatches = async (req: Request, res: Response) => {
     const matches = await Match.findAll({
       where: {
         user_id: userId,
-        status: 'like',
+        status: "like",
       },
-      include: [{
-        model: User,
-        as: 'matchedUser',
-        attributes: ['id', 'f_name', 'l_name', 'profile', 'years', 'city', 'country', 'status'],
-        required: false,
-      }],
+      include: [
+        {
+          model: User,
+          as: "matchedUser",
+          attributes: [
+            "id",
+            "f_name",
+            "l_name",
+            "profile",
+            "years",
+            "city",
+            "country",
+            "status",
+          ],
+          required: false,
+        },
+      ],
     });
 
     const mutualMatches = [];
@@ -661,7 +816,7 @@ export const getMatches = async (req: Request, res: Response) => {
         where: {
           user_id: userId,
           matched_user_id: match.matched_user_id,
-          status: 'flag',
+          status: "flag",
         },
       });
 
@@ -673,7 +828,7 @@ export const getMatches = async (req: Request, res: Response) => {
         where: {
           user_id: match.matched_user_id,
           matched_user_id: userId,
-          status: 'like',
+          status: "like",
         },
       });
 
@@ -713,7 +868,7 @@ export const getAllLikes = async (req: Request, res: Response) => {
     const likes = await Match.findAll({
       where: {
         matched_user_id: userId,
-        status: 'like',
+        status: "like",
       },
     });
 
@@ -723,7 +878,7 @@ export const getAllLikes = async (req: Request, res: Response) => {
         where: {
           user_id: userId,
           matched_user_id: like.user_id,
-          status: 'flag',
+          status: "flag",
         },
       });
 
@@ -735,12 +890,22 @@ export const getAllLikes = async (req: Request, res: Response) => {
         where: {
           user_id: userId,
           matched_user_id: like.user_id,
-          status: 'like',
+          status: "like",
         },
       });
 
       if (!reverseMatch) {
-        const user = await User.findByPk(like.user_id);
+        // Only show likers who are fully verified & have approved photos.
+        // Pending/rejected likers are hidden until they get approved.
+        const user = await User.findOne({
+          where: {
+            id: like.user_id,
+            photoStatus: "approved",
+            IsVerified: true,
+            aproved: "YES",
+            isBlocked: false,
+          },
+        });
         if (user) {
           const data: any = user.toJSON();
           if (data.password) delete data.password;
@@ -761,26 +926,36 @@ export const getAllLikes = async (req: Request, res: Response) => {
 // Get Top Picks
 export const getTopPicks = async (req: Request, res: Response) => {
   try {
-    const { 
-      owner, 
-      user, 
-      email, 
-      from,        // Min age preference
-      to,          // Max age preference
-      wanttosee,   // Gender preference
-      interest, 
-      distance, 
-      fors, 
-      Orientation, 
-      country,     // Country preference
-      city 
+    const {
+      owner,
+      user,
+      email,
+      from, // Min age preference
+      to, // Max age preference
+      wanttosee, // Gender preference
+      interest,
+      distance,
+      fors,
+      Orientation,
+      country, // Country preference
+      city,
     } = req.body;
-    
+
     // Use 'owner' if provided, otherwise fall back to 'user'
     const userId = owner || user;
 
-    console.log('[TopPicks] Request params:', {
-      userId, email, from, to, wanttosee, interest, distance, fors, Orientation, country, city
+    console.log("[TopPicks] Request params:", {
+      userId,
+      email,
+      from,
+      to,
+      wanttosee,
+      interest,
+      distance,
+      fors,
+      Orientation,
+      country,
+      city,
     });
 
     if (!userId) {
@@ -797,28 +972,32 @@ export const getTopPicks = async (req: Request, res: Response) => {
     // Get users that current user has already swiped on
     const swipedUsers = await Match.findAll({
       where: { user_id: userId },
-      attributes: ['matched_user_id'],
+      attributes: ["matched_user_id"],
     });
-    const swipedUserIds = swipedUsers.map(m => m.matched_user_id);
+    const swipedUserIds = swipedUsers.map((m) => m.matched_user_id);
 
     // ===== STEP 1: BASE CONDITIONS =====
     // Only apply gender as mandatory filter
     const baseConditions: any = {
       id: { [Op.and]: [{ [Op.ne]: userId }, { [Op.notIn]: swipedUserIds }] },
-      aproved: 'YES',
+      aproved: "YES",
       IsVerified: true,
       isBlocked: false,
       tester: false, // Exclude test accounts from matching
+      photoStatus: "approved", // Only show approved photos
     };
 
     // MANDATORY: Gender filter (wanttosee)
     if (!wanttosee) {
-      res.status(400).json({ message: "wanttosee (gender preference) is required", status: 0 });
+      res.status(400).json({
+        message: "wanttosee (gender preference) is required",
+        status: 0,
+      });
       return;
     }
     baseConditions.gender = wanttosee;
 
-    console.log('[TopPicks] Base conditions:', baseConditions);
+    console.log("[TopPicks] Base conditions:", baseConditions);
 
     // Fetch ALL users matching gender (we'll prioritize by toppicks and globe later)
     let allUsers = await User.findAll({
@@ -826,7 +1005,7 @@ export const getTopPicks = async (req: Request, res: Response) => {
       limit: 1000,
     });
 
-    console.log('[TopPicks] After gender filter:', allUsers.length);
+    console.log("[TopPicks] After gender filter:", allUsers.length);
 
     if (allUsers.length === 0) {
       res.status(200).json([]);
@@ -835,150 +1014,188 @@ export const getTopPicks = async (req: Request, res: Response) => {
 
     // ===== STEP 2: ENRICH DATA =====
 
-
-  // fht:explaining the codes <||> Purpose: Set age range bounds with priority fallback chain using nullish coalescing (??).
-  // Logic: 1) Use explicit request param (from/to) if provided | 2) Fall back to user's saved preferences (ages/secondages) | 3) Default to 18-100 if neither set.
-  // Note: ?? only falls back for null/undefined, not 0 - so age 0 is valid unlike || which would treat 0 as falsy.
-  const minAge = toNumberOrUndefined(from) ?? toNumberOrUndefined(currentUser.ages) ?? 18;
-  const maxAge = toNumberOrUndefined(to) ?? toNumberOrUndefined(currentUser.secondages) ?? 100;
-
-
-
+    // fht:explaining the codes <||> Purpose: Set age range bounds with priority fallback chain using nullish coalescing (??).
+    // Logic: 1) Use explicit request param (from/to) if provided | 2) Fall back to user's saved preferences (ages/secondages) | 3) Default to 18-100 if neither set.
+    // Note: ?? only falls back for null/undefined, not 0 - so age 0 is valid unlike || which would treat 0 as falsy.
+    const minAge =
+      toNumberOrUndefined(from) ?? toNumberOrUndefined(currentUser.ages) ?? 18;
+    const maxAge =
+      toNumberOrUndefined(to) ??
+      toNumberOrUndefined(currentUser.secondages) ??
+      100;
 
     const maxDistanceKm = toNumberOrUndefined(distance);
-    
+
     const requestedCountry = toTrimmedLower(country);
     const currentUserCountry = toTrimmedLower(currentUser.country);
-    const targetCountry = requestedCountry && requestedCountry !== 'null' ? requestedCountry : currentUserCountry;
+    const targetCountry =
+      requestedCountry && requestedCountry !== "null"
+        ? requestedCountry
+        : currentUserCountry;
 
     const enrichedUsers = allUsers.map((user) => {
       const u: any = user.toJSON();
-      
+
       // Calculate age
       u.computedAge = calculateAge(u.years);
-      u.ageMatch = u.computedAge != null && u.computedAge >= minAge && u.computedAge <= maxAge;
-      
+      u.ageMatch =
+        u.computedAge != null &&
+        u.computedAge >= minAge &&
+        u.computedAge <= maxAge;
+
       // Calculate distance
       u.computedDistance = computeCandidateDistanceKm(currentUser, u);
-      u.distanceMatch = maxDistanceKm != null && u.computedDistance !== Infinity 
-        ? u.computedDistance <= maxDistanceKm 
-        : null;
-      
+      u.distanceMatch =
+        maxDistanceKm != null && u.computedDistance !== Infinity
+          ? u.computedDistance <= maxDistanceKm
+          : null;
+
       // Country match
       const candCountry = toTrimmedLower(u.country);
-      u.countryMatch = targetCountry && candCountry ? candCountry === targetCountry : false;
-      
+      u.countryMatch =
+        targetCountry && candCountry ? candCountry === targetCountry : false;
+
       // Check toppicks and globe flags (handle both 'true' string and boolean true)
-      u.hasTopPicks = u.toppicks === 'true' || u.toppicks === true;
-      u.hasGlobe = u.globe === 'true' || u.globe === true;
-      
+      u.hasTopPicks = u.toppicks === "true" || u.toppicks === true;
+      u.hasGlobe = u.globe === "true" || u.globe === true;
+
       // Calculate match score for sorting
       u._score = computeMatchScore(currentUser, u, u.computedDistance);
-      
+
       // Boost score for paid/premium users
-      if (u.subs && u.subs !== 'FREE') {
+      if (u.subs && u.subs !== "FREE") {
         u._score += 0.05;
       }
-      
+
       return u;
     });
 
     // ===== STEP 3: PRIORITIZED FILTERING =====
     // This creates multiple tiers of matches based on priority
-    
+
     // PRIORITY 1: toppicks=true + globe=false + age + country + distance
     // (Users who opted into top picks but only in their country)
-    let tier1 = enrichedUsers.filter(u => 
-      u.hasTopPicks &&
-      !u.hasGlobe &&
-      u.ageMatch &&
-      u.countryMatch &&
-      (u.distanceMatch === true || u.distanceMatch === null)
+    let tier1 = enrichedUsers.filter(
+      (u) =>
+        u.hasTopPicks &&
+        !u.hasGlobe &&
+        u.ageMatch &&
+        u.countryMatch &&
+        (u.distanceMatch === true || u.distanceMatch === null),
     );
-    console.log('[TopPicks Priority 1] toppicks + !globe + age + country + distance:', tier1.length);
+    console.log(
+      "[TopPicks Priority 1] toppicks + !globe + age + country + distance:",
+      tier1.length,
+    );
 
     // PRIORITY 2: toppicks=true + globe=false + age + country (ignore distance)
-    let tier2 = enrichedUsers.filter(u => 
-      u.hasTopPicks &&
-      !u.hasGlobe &&
-      u.ageMatch &&
-      u.countryMatch &&
-      !tier1.includes(u)
+    let tier2 = enrichedUsers.filter(
+      (u) =>
+        u.hasTopPicks &&
+        !u.hasGlobe &&
+        u.ageMatch &&
+        u.countryMatch &&
+        !tier1.includes(u),
     );
-    console.log('[TopPicks Priority 2] toppicks + !globe + age + country (any distance):', tier2.length);
+    console.log(
+      "[TopPicks Priority 2] toppicks + !globe + age + country (any distance):",
+      tier2.length,
+    );
 
     // PRIORITY 3: toppicks=true + globe=true + age + country + distance
     // (Global users in same country with distance match)
-    let tier3 = enrichedUsers.filter(u => 
-      u.hasTopPicks &&
-      u.hasGlobe &&
-      u.ageMatch &&
-      u.countryMatch &&
-      (u.distanceMatch === true || u.distanceMatch === null) &&
-      !tier1.includes(u) &&
-      !tier2.includes(u)
+    let tier3 = enrichedUsers.filter(
+      (u) =>
+        u.hasTopPicks &&
+        u.hasGlobe &&
+        u.ageMatch &&
+        u.countryMatch &&
+        (u.distanceMatch === true || u.distanceMatch === null) &&
+        !tier1.includes(u) &&
+        !tier2.includes(u),
     );
-    console.log('[TopPicks Priority 3] toppicks + globe + age + country + distance:', tier3.length);
+    console.log(
+      "[TopPicks Priority 3] toppicks + globe + age + country + distance:",
+      tier3.length,
+    );
 
     // PRIORITY 4: toppicks=true + globe=true + age + country (ignore distance)
-    let tier4 = enrichedUsers.filter(u => 
-      u.hasTopPicks &&
-      u.hasGlobe &&
-      u.ageMatch &&
-      u.countryMatch &&
-      !tier1.includes(u) &&
-      !tier2.includes(u) &&
-      !tier3.includes(u)
+    let tier4 = enrichedUsers.filter(
+      (u) =>
+        u.hasTopPicks &&
+        u.hasGlobe &&
+        u.ageMatch &&
+        u.countryMatch &&
+        !tier1.includes(u) &&
+        !tier2.includes(u) &&
+        !tier3.includes(u),
     );
-    console.log('[TopPicks Priority 4] toppicks + globe + age + country (any distance):', tier4.length);
+    console.log(
+      "[TopPicks Priority 4] toppicks + globe + age + country (any distance):",
+      tier4.length,
+    );
 
     // PRIORITY 5: toppicks=true + globe=true + age (ANY LOCATION - worldwide)
-    let tier5 = enrichedUsers.filter(u => 
-      u.hasTopPicks &&
-      u.hasGlobe &&
-      u.ageMatch &&
-      !tier1.includes(u) &&
-      !tier2.includes(u) &&
-      !tier3.includes(u) &&
-      !tier4.includes(u)
+    let tier5 = enrichedUsers.filter(
+      (u) =>
+        u.hasTopPicks &&
+        u.hasGlobe &&
+        u.ageMatch &&
+        !tier1.includes(u) &&
+        !tier2.includes(u) &&
+        !tier3.includes(u) &&
+        !tier4.includes(u),
     );
-    console.log('[TopPicks Priority 5] toppicks + globe + age (worldwide):', tier5.length);
+    console.log(
+      "[TopPicks Priority 5] toppicks + globe + age (worldwide):",
+      tier5.length,
+    );
 
     // PRIORITY 6: toppicks=true + globe=false (relax age, but still same country only)
-    let tier6 = enrichedUsers.filter(u => 
-      u.hasTopPicks &&
-      !u.hasGlobe &&
-      u.countryMatch &&
-      !tier1.includes(u) &&
-      !tier2.includes(u)
+    let tier6 = enrichedUsers.filter(
+      (u) =>
+        u.hasTopPicks &&
+        !u.hasGlobe &&
+        u.countryMatch &&
+        !tier1.includes(u) &&
+        !tier2.includes(u),
     );
-    console.log('[TopPicks Priority 6] toppicks + !globe + country (relaxed age):', tier6.length);
+    console.log(
+      "[TopPicks Priority 6] toppicks + !globe + country (relaxed age):",
+      tier6.length,
+    );
 
     // PRIORITY 7: toppicks=true + globe=true (relax age and location - show everyone globally)
-    let tier7 = enrichedUsers.filter(u => 
-      u.hasTopPicks &&
-      u.hasGlobe &&
-      !tier1.includes(u) &&
-      !tier2.includes(u) &&
-      !tier3.includes(u) &&
-      !tier4.includes(u) &&
-      !tier5.includes(u)
+    let tier7 = enrichedUsers.filter(
+      (u) =>
+        u.hasTopPicks &&
+        u.hasGlobe &&
+        !tier1.includes(u) &&
+        !tier2.includes(u) &&
+        !tier3.includes(u) &&
+        !tier4.includes(u) &&
+        !tier5.includes(u),
     );
-    console.log('[TopPicks Priority 7] toppicks + globe (relaxed age, worldwide):', tier7.length);
+    console.log(
+      "[TopPicks Priority 7] toppicks + globe (relaxed age, worldwide):",
+      tier7.length,
+    );
 
     // ===== STEP 4: SORT EACH TIER BY SCORE =====
     const sortByScore = (a: any, b: any) => {
       // First by age match
       if (a.ageMatch !== b.ageMatch) return b.ageMatch ? 1 : -1;
-      
+
       // Then by country match
       if (a.countryMatch !== b.countryMatch) return b.countryMatch ? 1 : -1;
-      
+
       // Then by distance
-      const distA = a.computedDistance !== Infinity ? a.computedDistance : 999999;
-      const distB = b.computedDistance !== Infinity ? b.computedDistance : 999999;
+      const distA =
+        a.computedDistance !== Infinity ? a.computedDistance : 999999;
+      const distB =
+        b.computedDistance !== Infinity ? b.computedDistance : 999999;
       if (distA !== distB) return distA - distB;
-      
+
       // Finally by computed score
       return (b._score || 0) - (a._score || 0);
     };
@@ -999,27 +1216,28 @@ export const getTopPicks = async (req: Request, res: Response) => {
       ...tier4,
       ...tier5,
       ...tier6,
-      ...tier7
+      ...tier7,
     ];
 
-    console.log('[TopPicks] Total combined picks:', combinedTopPicks.length);
+    console.log("[TopPicks] Total combined picks:", combinedTopPicks.length);
 
     // ===== STEP 6: FORMAT AND RETURN =====
-    const picksData = combinedTopPicks.slice(0, 50).map(pick => {
+    const picksData = combinedTopPicks.slice(0, 50).map((pick) => {
       const data: any = pick;
-      
+
       // Remove sensitive data
       delete data.password;
       delete data.OTP;
       delete data.OTPExpiry;
-      
+
       // Format response
       return {
         ...data,
         age: data.computedAge,
-        distance: data.computedDistance !== Infinity 
-          ? Number(data.computedDistance.toFixed(2)) 
-          : null,
+        distance:
+          data.computedDistance !== Infinity
+            ? Number(data.computedDistance.toFixed(2))
+            : null,
         status: data.status,
         score: data._score ? Number(data._score.toFixed(4)) : undefined,
         // Remove temporary fields
@@ -1034,38 +1252,49 @@ export const getTopPicks = async (req: Request, res: Response) => {
       };
     });
 
-    console.log('[TopPicks] Returning:', picksData.length, 'picks');
+    console.log("[TopPicks] Returning:", picksData.length, "picks");
     res.status(200).json(picksData);
   } catch (error: any) {
     console.error("Get top picks error:", error);
-    res.status(500).json({ message: "Server error", status: 0, error: error.message });
+    res
+      .status(500)
+      .json({ message: "Server error", status: 0, error: error.message });
   }
 };
-
 
 // Get Top Picks
 export const filteredExplore = async (req: Request, res: Response) => {
   try {
-    const { 
-      owner, 
-      user, 
-      email, 
-      from,        // Min age preference
-      to,          // Max age preference
-      wanttosee,   // Gender preference
-      interest, 
-      distance, 
-      fors, 
-      Orientation, 
-      country,     // Country preference
-      city 
+    const {
+      owner,
+      user,
+      email,
+      from, // Min age preference
+      to, // Max age preference
+      wanttosee, // Gender preference
+      interest,
+      distance,
+      fors,
+      Orientation,
+      country, // Country preference
+      city,
     } = req.body;
-    
+
     // Use 'owner' if provided, otherwise fall back to 'user'
     const userId = owner || user;
 
-    console.log('[TopPicks] Request params:', {
-      userId, email, from, to, wanttosee, interest, distance, fors, Orientation, country, city
+    console.log("[TopPicks] Request params:", {
+      userId,
+      email,
+      from,
+      to,
+      wanttosee,
+      interest,
+      distance,
+      fors,
+      Orientation,
+      country,
+      city,
     });
 
     if (!userId) {
@@ -1082,33 +1311,37 @@ export const filteredExplore = async (req: Request, res: Response) => {
     // Get users that current user has already swiped on
     const swipedUsers = await Match.findAll({
       where: { user_id: userId },
-      attributes: ['matched_user_id'],
+      attributes: ["matched_user_id"],
     });
-    const swipedUserIds = swipedUsers.map(m => m.matched_user_id);
+    const swipedUserIds = swipedUsers.map((m) => m.matched_user_id);
 
     // ===== STEP 1: BASE CONDITIONS =====
     // Only apply gender as mandatory filter
     const baseConditions: any = {
       id: { [Op.and]: [{ [Op.ne]: userId }, { [Op.notIn]: swipedUserIds }] },
-      aproved: 'YES',
+      aproved: "YES",
       IsVerified: true,
       isBlocked: false,
       tester: false, // Exclude test accounts from matching
+      photoStatus: "approved", // Only show approved photos
     };
 
     // MANDATORY: Gender filter (wanttosee)
     if (!wanttosee) {
-      res.status(400).json({ message: "wanttosee (gender preference) is required", status: 0 });
+      res.status(400).json({
+        message: "wanttosee (gender preference) is required",
+        status: 0,
+      });
       return;
     }
     baseConditions.gender = wanttosee;
 
-    const selectedFors = typeof fors === 'string' ? fors.trim() : '';
-    if (selectedFors && toTrimmedLower(selectedFors) !== 'all') {
+    const selectedFors = typeof fors === "string" ? fors.trim() : "";
+    if (selectedFors && toTrimmedLower(selectedFors) !== "all") {
       baseConditions.fors = selectedFors;
     }
 
-    console.log('[TopPicks] Base conditions:', baseConditions);
+    console.log("[TopPicks] Base conditions:", baseConditions);
 
     // Fetch ALL users matching gender (we'll prioritize by toppicks and globe later)
     let allUsers = await User.findAll({
@@ -1116,7 +1349,7 @@ export const filteredExplore = async (req: Request, res: Response) => {
       limit: 1000,
     });
 
-    console.log('[TopPicks] After gender filter:', allUsers.length);
+    console.log("[TopPicks] After gender filter:", allUsers.length);
 
     if (allUsers.length === 0) {
       res.status(200).json([]);
@@ -1125,145 +1358,187 @@ export const filteredExplore = async (req: Request, res: Response) => {
 
     // ===== STEP 2: ENRICH DATA =====
     // fht:explaining the codes <||> Purpose: Set age range bounds with priority fallback chain using nullish coalescing (??).
-  // Logic: 1) Use explicit request param (from/to) if provided | 2) Fall back to user's saved preferences (ages/secondages) | 3) Default to 18-100 if neither set.
-  // Note: ?? only falls back for null/undefined, not 0 - so age 0 is valid unlike || which would treat 0 as falsy.
-  const minAge = toNumberOrUndefined(from) ?? toNumberOrUndefined(currentUser.ages) ?? 18;
-  const maxAge = toNumberOrUndefined(to) ?? toNumberOrUndefined(currentUser.secondages) ?? 100;
+    // Logic: 1) Use explicit request param (from/to) if provided | 2) Fall back to user's saved preferences (ages/secondages) | 3) Default to 18-100 if neither set.
+    // Note: ?? only falls back for null/undefined, not 0 - so age 0 is valid unlike || which would treat 0 as falsy.
+    const minAge =
+      toNumberOrUndefined(from) ?? toNumberOrUndefined(currentUser.ages) ?? 18;
+    const maxAge =
+      toNumberOrUndefined(to) ??
+      toNumberOrUndefined(currentUser.secondages) ??
+      100;
 
     const maxDistanceKm = toNumberOrUndefined(distance);
-    
+
     const requestedCountry = toTrimmedLower(country);
     const currentUserCountry = toTrimmedLower(currentUser.country);
-    const targetCountry = requestedCountry && requestedCountry !== 'null' ? requestedCountry : currentUserCountry;
+    const targetCountry =
+      requestedCountry && requestedCountry !== "null"
+        ? requestedCountry
+        : currentUserCountry;
 
     const enrichedUsers = allUsers.map((user) => {
       const u: any = user.toJSON();
-      
+
       // Calculate age
       u.computedAge = calculateAge(u.years);
-      u.ageMatch = u.computedAge != null && u.computedAge >= minAge && u.computedAge <= maxAge;
-      
+      u.ageMatch =
+        u.computedAge != null &&
+        u.computedAge >= minAge &&
+        u.computedAge <= maxAge;
+
       // Calculate distance
       u.computedDistance = computeCandidateDistanceKm(currentUser, u);
-      u.distanceMatch = maxDistanceKm != null && u.computedDistance !== Infinity 
-        ? u.computedDistance <= maxDistanceKm 
-        : null;
-      
+      u.distanceMatch =
+        maxDistanceKm != null && u.computedDistance !== Infinity
+          ? u.computedDistance <= maxDistanceKm
+          : null;
+
       // Country match
       const candCountry = toTrimmedLower(u.country);
-      u.countryMatch = targetCountry && candCountry ? candCountry === targetCountry : false;
-      
+      u.countryMatch =
+        targetCountry && candCountry ? candCountry === targetCountry : false;
+
       // Check toppicks and globe flags (handle both 'true' string and boolean true)
-      u.hasTopPicks = u.toppicks === 'true' || u.toppicks === true;
-      u.hasGlobe = u.globe === 'true' || u.globe === true;
-      
+      u.hasTopPicks = u.toppicks === "true" || u.toppicks === true;
+      u.hasGlobe = u.globe === "true" || u.globe === true;
+
       // Calculate match score for sorting
       u._score = computeMatchScore(currentUser, u, u.computedDistance);
-      
+
       // Boost score for paid/premium users
-      if (u.subs && u.subs !== 'FREE') {
+      if (u.subs && u.subs !== "FREE") {
         u._score += 0.05;
       }
-      
+
       return u;
     });
 
     // ===== STEP 3: PRIORITIZED FILTERING =====
     // This creates multiple tiers of matches based on priority
-    
+
     // PRIORITY 1: toppicks=true + globe=false + age + country + distance
     // (Users who opted into top picks but only in their country)
-    let tier1 = enrichedUsers.filter(u => 
-      u.hasTopPicks &&
-      !u.hasGlobe &&
-      u.ageMatch &&
-      u.countryMatch &&
-      (u.distanceMatch === true || u.distanceMatch === null)
+    let tier1 = enrichedUsers.filter(
+      (u) =>
+        u.hasTopPicks &&
+        !u.hasGlobe &&
+        u.ageMatch &&
+        u.countryMatch &&
+        (u.distanceMatch === true || u.distanceMatch === null),
     );
-    console.log('[TopPicks Priority 1] toppicks + !globe + age + country + distance:', tier1.length);
+    console.log(
+      "[TopPicks Priority 1] toppicks + !globe + age + country + distance:",
+      tier1.length,
+    );
 
     // PRIORITY 2: toppicks=true + globe=false + age + country (ignore distance)
-    let tier2 = enrichedUsers.filter(u => 
-      u.hasTopPicks &&
-      !u.hasGlobe &&
-      u.ageMatch &&
-      u.countryMatch &&
-      !tier1.includes(u)
+    let tier2 = enrichedUsers.filter(
+      (u) =>
+        u.hasTopPicks &&
+        !u.hasGlobe &&
+        u.ageMatch &&
+        u.countryMatch &&
+        !tier1.includes(u),
     );
-    console.log('[TopPicks Priority 2] toppicks + !globe + age + country (any distance):', tier2.length);
+    console.log(
+      "[TopPicks Priority 2] toppicks + !globe + age + country (any distance):",
+      tier2.length,
+    );
 
     // PRIORITY 3: toppicks=true + globe=true + age + country + distance
     // (Global users in same country with distance match)
-    let tier3 = enrichedUsers.filter(u => 
-      u.hasTopPicks &&
-      u.hasGlobe &&
-      u.ageMatch &&
-      u.countryMatch &&
-      (u.distanceMatch === true || u.distanceMatch === null) &&
-      !tier1.includes(u) &&
-      !tier2.includes(u)
+    let tier3 = enrichedUsers.filter(
+      (u) =>
+        u.hasTopPicks &&
+        u.hasGlobe &&
+        u.ageMatch &&
+        u.countryMatch &&
+        (u.distanceMatch === true || u.distanceMatch === null) &&
+        !tier1.includes(u) &&
+        !tier2.includes(u),
     );
-    console.log('[TopPicks Priority 3] toppicks + globe + age + country + distance:', tier3.length);
+    console.log(
+      "[TopPicks Priority 3] toppicks + globe + age + country + distance:",
+      tier3.length,
+    );
 
     // PRIORITY 4: toppicks=true + globe=true + age + country (ignore distance)
-    let tier4 = enrichedUsers.filter(u => 
-      u.hasTopPicks &&
-      u.hasGlobe &&
-      u.ageMatch &&
-      u.countryMatch &&
-      !tier1.includes(u) &&
-      !tier2.includes(u) &&
-      !tier3.includes(u)
+    let tier4 = enrichedUsers.filter(
+      (u) =>
+        u.hasTopPicks &&
+        u.hasGlobe &&
+        u.ageMatch &&
+        u.countryMatch &&
+        !tier1.includes(u) &&
+        !tier2.includes(u) &&
+        !tier3.includes(u),
     );
-    console.log('[TopPicks Priority 4] toppicks + globe + age + country (any distance):', tier4.length);
+    console.log(
+      "[TopPicks Priority 4] toppicks + globe + age + country (any distance):",
+      tier4.length,
+    );
 
     // PRIORITY 5: toppicks=true + globe=true + age (ANY LOCATION - worldwide)
-    let tier5 = enrichedUsers.filter(u => 
-      u.hasTopPicks &&
-      u.hasGlobe &&
-      u.ageMatch &&
-      !tier1.includes(u) &&
-      !tier2.includes(u) &&
-      !tier3.includes(u) &&
-      !tier4.includes(u)
+    let tier5 = enrichedUsers.filter(
+      (u) =>
+        u.hasTopPicks &&
+        u.hasGlobe &&
+        u.ageMatch &&
+        !tier1.includes(u) &&
+        !tier2.includes(u) &&
+        !tier3.includes(u) &&
+        !tier4.includes(u),
     );
-    console.log('[TopPicks Priority 5] toppicks + globe + age (worldwide):', tier5.length);
+    console.log(
+      "[TopPicks Priority 5] toppicks + globe + age (worldwide):",
+      tier5.length,
+    );
 
     // PRIORITY 6: toppicks=true + globe=false (relax age, but still same country only)
-    let tier6 = enrichedUsers.filter(u => 
-      u.hasTopPicks &&
-      !u.hasGlobe &&
-      u.countryMatch &&
-      !tier1.includes(u) &&
-      !tier2.includes(u)
+    let tier6 = enrichedUsers.filter(
+      (u) =>
+        u.hasTopPicks &&
+        !u.hasGlobe &&
+        u.countryMatch &&
+        !tier1.includes(u) &&
+        !tier2.includes(u),
     );
-    console.log('[TopPicks Priority 6] toppicks + !globe + country (relaxed age):', tier6.length);
+    console.log(
+      "[TopPicks Priority 6] toppicks + !globe + country (relaxed age):",
+      tier6.length,
+    );
 
     // PRIORITY 7: toppicks=true + globe=true (relax age and location - show everyone globally)
-    let tier7 = enrichedUsers.filter(u => 
-      u.hasTopPicks &&
-      u.hasGlobe &&
-      !tier1.includes(u) &&
-      !tier2.includes(u) &&
-      !tier3.includes(u) &&
-      !tier4.includes(u) &&
-      !tier5.includes(u)
+    let tier7 = enrichedUsers.filter(
+      (u) =>
+        u.hasTopPicks &&
+        u.hasGlobe &&
+        !tier1.includes(u) &&
+        !tier2.includes(u) &&
+        !tier3.includes(u) &&
+        !tier4.includes(u) &&
+        !tier5.includes(u),
     );
-    console.log('[TopPicks Priority 7] toppicks + globe (relaxed age, worldwide):', tier7.length);
+    console.log(
+      "[TopPicks Priority 7] toppicks + globe (relaxed age, worldwide):",
+      tier7.length,
+    );
 
     // ===== STEP 4: SORT EACH TIER BY SCORE =====
     const sortByScore = (a: any, b: any) => {
       // First by age match
       if (a.ageMatch !== b.ageMatch) return b.ageMatch ? 1 : -1;
-      
+
       // Then by country match
       if (a.countryMatch !== b.countryMatch) return b.countryMatch ? 1 : -1;
-      
+
       // Then by distance
-      const distA = a.computedDistance !== Infinity ? a.computedDistance : 999999;
-      const distB = b.computedDistance !== Infinity ? b.computedDistance : 999999;
+      const distA =
+        a.computedDistance !== Infinity ? a.computedDistance : 999999;
+      const distB =
+        b.computedDistance !== Infinity ? b.computedDistance : 999999;
       if (distA !== distB) return distA - distB;
-      
+
       // Finally by computed score
       return (b._score || 0) - (a._score || 0);
     };
@@ -1284,27 +1559,28 @@ export const filteredExplore = async (req: Request, res: Response) => {
       ...tier4,
       ...tier5,
       ...tier6,
-      ...tier7
+      ...tier7,
     ];
 
-    console.log('[TopPicks] Total combined picks:', combinedTopPicks.length);
+    console.log("[TopPicks] Total combined picks:", combinedTopPicks.length);
 
     // ===== STEP 6: FORMAT AND RETURN =====
-    const picksData = combinedTopPicks.slice(0, 50).map(pick => {
+    const picksData = combinedTopPicks.slice(0, 50).map((pick) => {
       const data: any = pick;
-      
+
       // Remove sensitive data
       delete data.password;
       delete data.OTP;
       delete data.OTPExpiry;
-      
+
       // Format response
       return {
         ...data,
         age: data.computedAge,
-        distance: data.computedDistance !== Infinity 
-          ? Number(data.computedDistance.toFixed(2)) 
-          : null,
+        distance:
+          data.computedDistance !== Infinity
+            ? Number(data.computedDistance.toFixed(2))
+            : null,
         status: data.status,
         score: data._score ? Number(data._score.toFixed(4)) : undefined,
         // Remove temporary fields
@@ -1319,11 +1595,13 @@ export const filteredExplore = async (req: Request, res: Response) => {
       };
     });
 
-    console.log('[TopPicks] Returning:', picksData.length, 'picks');
+    console.log("[TopPicks] Returning:", picksData.length, "picks");
     res.status(200).json(picksData);
   } catch (error: any) {
     console.error("Get top picks error:", error);
-    res.status(500).json({ message: "Server error", status: 0, error: error.message });
+    res
+      .status(500)
+      .json({ message: "Server error", status: 0, error: error.message });
   }
 };
 // Reset newlikes flag

@@ -12,7 +12,7 @@ import { moderateImage } from "../utils/imageModeration";
 const isChatBlockedByFlag = async (userA: number, userB: number) => {
   const flagRecord = await Match.findOne({
     where: {
-      status: 'flag',
+      status: "flag",
       [Op.or]: [
         { user_id: userA, matched_user_id: userB },
         { user_id: userB, matched_user_id: userA },
@@ -23,9 +23,18 @@ const isChatBlockedByFlag = async (userA: number, userB: number) => {
   return !!flagRecord;
 };
 
-const parseMessageDateFromClient = (dateValue: any, clientTimestampValue: any): Date => {
-  const rawClientTs = Array.isArray(clientTimestampValue) ? clientTimestampValue[0] : clientTimestampValue;
-  if (rawClientTs !== undefined && rawClientTs !== null && String(rawClientTs).trim() !== "") {
+const parseMessageDateFromClient = (
+  dateValue: any,
+  clientTimestampValue: any,
+): Date => {
+  const rawClientTs = Array.isArray(clientTimestampValue)
+    ? clientTimestampValue[0]
+    : clientTimestampValue;
+  if (
+    rawClientTs !== undefined &&
+    rawClientTs !== null &&
+    String(rawClientTs).trim() !== ""
+  ) {
     const parsedTs = Number(rawClientTs);
     if (!Number.isNaN(parsedTs) && Number.isFinite(parsedTs) && parsedTs > 0) {
       const fromTs = new Date(parsedTs);
@@ -48,7 +57,10 @@ export const sendMessage = async (req: Request, res: Response) => {
     const { user, rec, message, date, clientTimestamp, name } = req.body;
 
     if (!user || !rec || !message) {
-      res.status(400).json({ message: "User, receiver, and message are required", status: 0 });
+      res.status(400).json({
+        message: "User, receiver, and message are required",
+        status: 0,
+      });
       return;
     }
 
@@ -57,7 +69,9 @@ export const sendMessage = async (req: Request, res: Response) => {
     const isBlocked = await isChatBlockedByFlag(senderId, receiverId);
 
     if (isBlocked) {
-      res.status(403).json({ message: "Chat is unavailable", status: 0, blocked: true });
+      res
+        .status(403)
+        .json({ message: "Chat is unavailable", status: 0, blocked: true });
       return;
     }
 
@@ -69,14 +83,24 @@ export const sendMessage = async (req: Request, res: Response) => {
     });
 
     // Send push notification
+    const sender = await User.findByPk(user);
     const receiver = await User.findByPk(rec);
-    console.log('🔔 Push check for user', rec, {
+    const senderName = sender?.f_name
+      ? `${sender.f_name}${sender.l_name ? " " + sender.l_name : ""}`
+      : name || "New Message";
+    const isGif =
+      typeof message === "string" &&
+      (message.includes("giphy.com") || message.includes("giphy.gif"));
+    const messagePreview = isGif ? "Sent a GIF 🎬" : message.substring(0, 50);
+    console.log("🔔 Push check for user", rec, {
       hasReceiver: !!receiver,
       pushEnabled: receiver?.push,
       pushValue: receiver?.push,
     });
-    if (receiver && receiver.push === 'true') {
-      await sendPushNotification(Number(rec), name || "New Message", message.substring(0, 50));
+    if (receiver && receiver.push === "true") {
+      await sendPushNotification(Number(rec), senderName, messagePreview, {
+        type: "new_message",
+      });
     }
 
     // Set newmessage flag for receiver
@@ -84,7 +108,9 @@ export const sendMessage = async (req: Request, res: Response) => {
       await receiver.update({ newmessage: true });
     }
 
-    res.status(200).json({ message: "Message sent", status: 1, messageId: newmessage.id });
+    res
+      .status(200)
+      .json({ message: "Message sent", status: 1, messageId: newmessage.id });
   } catch (error: any) {
     console.error("Send message error:", error);
     res.status(500).json({ message: "Server error", status: 0 });
@@ -99,7 +125,7 @@ export const sendMessageImage = async (req: Request, res: Response) => {
     if (!user || !too || !image) {
       return res.status(400).json({
         message: "User, receiver, and image are required",
-        status: 0
+        status: 0,
       });
     }
 
@@ -111,7 +137,7 @@ export const sendMessageImage = async (req: Request, res: Response) => {
       return res.status(403).json({
         message: "Chat is unavailable",
         status: 0,
-        blocked: true
+        blocked: true,
       });
     }
 
@@ -121,14 +147,14 @@ export const sendMessageImage = async (req: Request, res: Response) => {
 
     // 2️⃣ VERY STRICT moderation for messages
     const allowed = await moderateImage(tempPath, {
-      allowShirtless: false // 🚫 NEVER allowed in messages
+      allowShirtless: false, // 🚫 NEVER allowed in messages
     });
 
     if (!allowed) {
       fs.unlinkSync(tempPath); // 🔥 delete immediately
       return res.status(400).json({
         message: "This image is not allowed in messages.",
-        status: 0
+        status: 0,
       });
     }
 
@@ -147,21 +173,22 @@ export const sendMessageImage = async (req: Request, res: Response) => {
     });
 
     // 6️⃣ Push notification
+    const sender = await User.findByPk(user);
     const receiver = await User.findByPk(too);
+    const senderName = sender?.f_name
+      ? `${sender.f_name}${sender.l_name ? " " + sender.l_name : ""}`
+      : name || "New Message";
     if (receiver && receiver.push === "true") {
-      await sendPushNotification(
-        Number(too),
-        name || "New Message",
-        "Sent you an image"
-      );
+      await sendPushNotification(Number(too), senderName, "Sent you an image", {
+        type: "new_message",
+      });
     }
 
     res.status(200).json({
       message: "Image sent",
       status: 1,
-      messageId: newmessage.id
+      messageId: newmessage.id,
     });
-
   } catch (error: any) {
     console.error("Send message image error:", error);
     res.status(500).json({ message: "Server error", status: 0 });
@@ -177,31 +204,35 @@ export const getMessages = async (req: Request, res: Response) => {
     const { sender, user, page, limit, isTyping } = req.body;
 
     if (!sender || !user) {
-      res.status(400).json({ message: "Sender and user are required", status: 0 });
+      res
+        .status(400)
+        .json({ message: "Sender and user are required", status: 0 });
       return;
     }
 
     const senderId = Number(sender);
     const userId = Number(user);
-    
+
     // Update typing status for current user -> sender
     const typingKey = `${userId}_${senderId}`;
-    if (isTyping === 'true' || isTyping === true) {
+    if (isTyping === "true" || isTyping === true) {
       typingStatuses.set(typingKey, Date.now());
     } else {
       typingStatuses.delete(typingKey);
     }
-    
+
     // Check if peer (sender) is typing to us (user)
     const peerTypingKey = `${senderId}_${userId}`;
     const peerLastTypingAt = typingStatuses.get(peerTypingKey);
-    const peerIsTyping = peerLastTypingAt ? (Date.now() - peerLastTypingAt < 4000) : false; // 4 seconds timeout
+    const peerIsTyping = peerLastTypingAt
+      ? Date.now() - peerLastTypingAt < 4000
+      : false; // 4 seconds timeout
 
     const isBlocked = await isChatBlockedByFlag(senderId, userId);
 
     const pageNum = page ? Number(page) : 1;
     const limitNum = limit ? Number(limit) : 15; // default limit 15 as requested
-    
+
     const queryOptions: any = {
       where: {
         [Op.or]: [
@@ -212,12 +243,12 @@ export const getMessages = async (req: Request, res: Response) => {
       include: [
         {
           model: User,
-          as: 'sender',
-          attributes: ['id', 'f_name', 'l_name', 'profile'],
+          as: "sender",
+          attributes: ["id", "f_name", "l_name", "profile"],
           required: false,
         },
       ],
-      order: [['createdAt', 'DESC']], // Fetch newest first to get correct slice
+      order: [["createdAt", "DESC"]], // Fetch newest first to get correct slice
     };
 
     if (limitNum > 0) {
@@ -228,11 +259,11 @@ export const getMessages = async (req: Request, res: Response) => {
     let messages = await Message.findAll(queryOptions);
     messages = messages.reverse(); // Reverse so older messages are at the top, making it chronological ASC
 
-    const messagesData = messages.map(msg => {
+    const messagesData = messages.map((msg) => {
       const data = msg.toJSON();
       // Fast timestamp extraction
       let messageDate = data.date || data.createdAt;
-      
+
       return {
         msg_id: data.id,
         msg: data.message,
@@ -243,7 +274,9 @@ export const getMessages = async (req: Request, res: Response) => {
     });
 
     if (isBlocked) {
-      res.status(200).json({ blocked: true, messages: messagesData, peerIsTyping: false });
+      res
+        .status(200)
+        .json({ blocked: true, messages: messagesData, peerIsTyping: false });
       return;
     }
 
@@ -269,18 +302,15 @@ export const getChatList = async (req: Request, res: Response) => {
     // Get distinct users who have messages with current user
     const messages = await Message.findAll({
       where: {
-        [Op.or]: [
-          { sender_id: userId },
-          { receiver_id: userId },
-        ],
+        [Op.or]: [{ sender_id: userId }, { receiver_id: userId }],
       },
-      attributes: ['sender_id', 'receiver_id', 'message', 'createdAt'],
-      order: [['createdAt', 'DESC']],
+      attributes: ["sender_id", "receiver_id", "message", "createdAt"],
+      order: [["createdAt", "DESC"]],
     });
 
     // Get unique user IDs from messages
     const messageUserIds = new Set<number>();
-    messages.forEach(msg => {
+    messages.forEach((msg) => {
       if (msg.sender_id !== userId) messageUserIds.add(msg.sender_id);
       if (msg.receiver_id !== userId) messageUserIds.add(msg.receiver_id);
     });
@@ -289,9 +319,9 @@ export const getChatList = async (req: Request, res: Response) => {
     const userMatches = await Match.findAll({
       where: {
         user_id: userId,
-        status: 'like',
+        status: "like",
       },
-      attributes: ['matched_user_id'],
+      attributes: ["matched_user_id"],
     });
 
     // Check for mutual matches
@@ -301,7 +331,7 @@ export const getChatList = async (req: Request, res: Response) => {
         where: {
           user_id: match.matched_user_id,
           matched_user_id: userId,
-          status: 'like',
+          status: "like",
         },
       });
 
@@ -312,8 +342,8 @@ export const getChatList = async (req: Request, res: Response) => {
 
     // Combine message users and matched users (matched users should appear even without messages)
     const allUserIds = new Set<number>();
-    messageUserIds.forEach(id => allUserIds.add(id));
-    matchedUserIds.forEach(id => allUserIds.add(id));
+    messageUserIds.forEach((id) => allUserIds.add(id));
+    matchedUserIds.forEach((id) => allUserIds.add(id));
 
     // Get user details and last message
     const chatList = [];
@@ -322,14 +352,16 @@ export const getChatList = async (req: Request, res: Response) => {
       if (!chatUser) continue;
 
       // Find last message if exists
-      const lastMessage = messages.find(msg =>
-        (msg.sender_id === userIdItem && msg.receiver_id === userId) ||
-        (msg.receiver_id === userIdItem && msg.sender_id === userId)
+      const lastMessage = messages.find(
+        (msg) =>
+          (msg.sender_id === userIdItem && msg.receiver_id === userId) ||
+          (msg.receiver_id === userIdItem && msg.sender_id === userId),
       );
 
       // If user has messages, use last message; if matched but no messages, use empty string
-      const lastMessageText = lastMessage?.message || '';
-      const lastMessageTime = (lastMessage as any)?.createdAt || (lastMessage as any)?.date || null;
+      const lastMessageText = lastMessage?.message || "";
+      const lastMessageTime =
+        (lastMessage as any)?.createdAt || (lastMessage as any)?.date || null;
 
       chatList.push({
         id: chatUser.id,
@@ -340,6 +372,8 @@ export const getChatList = async (req: Request, res: Response) => {
         verificationStatus: chatUser.verificationStatus,
         last_message: lastMessageText,
         last_message_time: lastMessageTime,
+        incoming_msg_id: lastMessage?.sender_id || null,
+        im1:chatUser.im1
       });
     }
 
@@ -347,10 +381,10 @@ export const getChatList = async (req: Request, res: Response) => {
     chatList.sort((a, b) => {
       const aHasMessage = a.last_message.length > 0;
       const bHasMessage = b.last_message.length > 0;
-      
+
       if (aHasMessage && !bHasMessage) return -1;
       if (!aHasMessage && bHasMessage) return 1;
-      
+
       // If both have messages or both don't, maintain order
       return 0;
     });
@@ -366,7 +400,7 @@ export const getChatList = async (req: Request, res: Response) => {
 export const deleteMessage = async (req: Request, res: Response) => {
   try {
     const { deletemessage } = req.query;
-    console.log('deleteMessage called with:', deletemessage);
+    console.log("deleteMessage called with:", deletemessage);
     const messageId = Number(deletemessage);
 
     if (!messageId) {
@@ -414,10 +448,18 @@ export const sendAudio = async (req: Request, res: Response) => {
     const file = (req as any).file;
     const { user, rec, date, clientTimestamp, name } = req.body;
 
-    console.log('sendAudio called, file present:', !!file, 'body:', { user, rec, date, name });
+    console.log("sendAudio called, file present:", !!file, "body:", {
+      user,
+      rec,
+      date,
+      name,
+    });
 
     if (!user || !rec || !file) {
-      res.status(400).json({ message: "User, receiver, and audio file are required", status: 0 });
+      res.status(400).json({
+        message: "User, receiver, and audio file are required",
+        status: 0,
+      });
       return;
     }
 
@@ -426,7 +468,9 @@ export const sendAudio = async (req: Request, res: Response) => {
     const isBlocked = await isChatBlockedByFlag(senderId, receiverId);
 
     if (isBlocked) {
-      res.status(403).json({ message: "Chat is unavailable", status: 0, blocked: true });
+      res
+        .status(403)
+        .json({ message: "Chat is unavailable", status: 0, blocked: true });
       return;
     }
 
@@ -440,12 +484,25 @@ export const sendAudio = async (req: Request, res: Response) => {
     });
 
     // Send push notification
+    const sender = await User.findByPk(user);
     const receiver = await User.findByPk(rec);
-    if (receiver && receiver.push === 'true') {
-      await sendPushNotification(Number(rec), name || "New Message", "Sent you a voice message");
+    const senderName = sender?.f_name
+      ? `${sender.f_name}${sender.l_name ? " " + sender.l_name : ""}`
+      : name || "New Message";
+    if (receiver && receiver.push === "true") {
+      await sendPushNotification(
+        Number(rec),
+        senderName,
+        "Sent you a voice message",
+        {
+          type: "new_message",
+        },
+      );
     }
 
-    res.status(200).json({ message: "Audio sent", status: 1, messageId: newmessage.id });
+    res
+      .status(200)
+      .json({ message: "Audio sent", status: 1, messageId: newmessage.id });
   } catch (error: any) {
     console.error("Send audio error:", error);
     res.status(500).json({ message: "Server error", status: 0 });
@@ -473,4 +530,3 @@ export const resetNewMessage = async (req: Request, res: Response) => {
     res.status(500).json({ message: "Server error", status: 0 });
   }
 };
-

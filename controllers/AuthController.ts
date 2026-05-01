@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import User from "../models/User";
+import UserPhotoReview from "../models/UserPhotoReview";
 import bcrypt from "bcryptjs";
 import { sendOTPEmail, sendPasswordResetEmail } from "../utils/email";
 import { Op } from "sequelize";
@@ -9,9 +10,18 @@ const generateOTP = (): string => {
   return Math.floor(100000 + Math.random() * 900000).toString();
 };
 
-const parseDateFromClient = (dateValue: any, clientTimestampValue: any): Date => {
-  const rawClientTs = Array.isArray(clientTimestampValue) ? clientTimestampValue[0] : clientTimestampValue;
-  if (rawClientTs !== undefined && rawClientTs !== null && String(rawClientTs).trim() !== "") {
+const parseDateFromClient = (
+  dateValue: any,
+  clientTimestampValue: any,
+): Date => {
+  const rawClientTs = Array.isArray(clientTimestampValue)
+    ? clientTimestampValue[0]
+    : clientTimestampValue;
+  if (
+    rawClientTs !== undefined &&
+    rawClientTs !== null &&
+    String(rawClientTs).trim() !== ""
+  ) {
     const parsedTs = Number(rawClientTs);
     if (!Number.isNaN(parsedTs) && Number.isFinite(parsedTs) && parsedTs > 0) {
       const fromTs = new Date(parsedTs);
@@ -34,17 +44,21 @@ export const registerUser = async (req: Request, res: Response) => {
     const { username, phone } = req.body;
 
     if (!username || !phone) {
-      res.status(400).json({ message: "Email and phone are required", status: 0 });
+      res
+        .status(400)
+        .json({ message: "Email and phone are required", status: 0 });
       return;
     }
 
     // Check if user already exists
-    console.log(`email which is ${username} and  phone which is ${phone} are required`)
-const existingUser = await User.findOne({
-  where: { email: username },
-});
- 
-   if (existingUser && existingUser.aproved === 'YES') {
+    console.log(
+      `email which is ${username} and  phone which is ${phone} are required`,
+    );
+    const existingUser = await User.findOne({
+      where: { email: username },
+    });
+
+    if (existingUser && existingUser.aproved === "YES") {
       res.status(400).json({ message: "User already exists", status: 0 });
       return;
     }
@@ -69,7 +83,7 @@ const existingUser = await User.findOne({
       OTP: otp,
       OTPExpiry: otpExpiry,
       IsVerified: false,
-      signedWithGoogle: 'NO',
+      signedWithGoogle: "NO",
     });
 
     res.status(200).json(user.id);
@@ -124,26 +138,26 @@ export const verifyOTP = async (req: Request, res: Response) => {
     const { vericode, email } = req.body;
     const otp = vericode;
 
-    console.log('verifyOTP request:', { email, otp });
+    console.log("verifyOTP request:", { email, otp });
 
     const user = await User.findOne({
       where: { email: email },
     });
 
     if (!user) {
-      console.log('verifyOTP user not found:', { email });
+      console.log("verifyOTP user not found:", { email });
       res.status(404).json(0);
       return;
     }
 
     if (user.OTP !== otp) {
-      console.log('verifyOTP mismatch:', { email });
+      console.log("verifyOTP mismatch:", { email });
       res.status(400).json(0);
       return;
     }
 
     if (user.OTPExpiry && new Date() > user.OTPExpiry) {
-      console.log('verifyOTP expired:', { email });
+      console.log("verifyOTP expired:", { email });
       res.status(400).json(0);
       return;
     }
@@ -203,7 +217,9 @@ export const loginUser = async (req: Request, res: Response) => {
     const loginAt = parseDateFromClient(date, clientTimestamp);
 
     if (!username || !password) {
-      res.status(400).json({ message: "Username and password are required", status: 0 });
+      res
+        .status(400)
+        .json({ message: "Username and password are required", status: 0 });
       return;
     }
 
@@ -225,7 +241,9 @@ export const loginUser = async (req: Request, res: Response) => {
     }
 
     if ((user as any).isBlocked) {
-      res.status(403).json({ message: "Account blocked", status: 0, isBlocked: true });
+      res
+        .status(403)
+        .json({ message: "Account blocked", status: 0, isBlocked: true });
       return;
     }
 
@@ -249,23 +267,27 @@ export const googleAuth = async (req: Request, res: Response) => {
     const { email, idToken, name } = req.body;
 
     if (!email || !idToken) {
-      res.status(400).json({ message: "Email and token are required", status: 0 });
+      res
+        .status(400)
+        .json({ message: "Email and token are required", status: 0 });
       return;
     }
 
     const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
       if ((existingUser as any).isBlocked) {
-        res.status(403).json({ message: "Account blocked", status: 0, isBlocked: true });
+        res
+          .status(403)
+          .json({ message: "Account blocked", status: 0, isBlocked: true });
         return;
       }
 
       // Check if user was created manually (not with Google)
-      if ((existingUser as any).signedWithGoogle === 'NO') {
-        if (existingUser.aproved === 'NO') {
-          const safeName = typeof name === 'string' ? name.trim() : '';
-          const [firstName = '', ...restNames] = safeName.split(' ');
-          const lastName = restNames.join(' ').trim();
+      if ((existingUser as any).signedWithGoogle === "NO") {
+        if (existingUser.aproved === "NO") {
+          const safeName = typeof name === "string" ? name.trim() : "";
+          const [firstName = "", ...restNames] = safeName.split(" ");
+          const lastName = restNames.join(" ").trim();
 
           const randomPassword = Math.random().toString(36).slice(-12);
           const hashedPassword = await bcrypt.hash(randomPassword, 10);
@@ -275,8 +297,8 @@ export const googleAuth = async (req: Request, res: Response) => {
             f_name: firstName || (existingUser as any).f_name || undefined,
             l_name: lastName || (existingUser as any).l_name || undefined,
             IsVerified: false,
-            aproved: (existingUser as any).aproved || 'NO',
-            signedWithGoogle: 'YES',
+            aproved: (existingUser as any).aproved || "NO",
+            signedWithGoogle: "YES",
             OTP: null as any,
             OTPExpiry: undefined,
           } as any);
@@ -290,15 +312,16 @@ export const googleAuth = async (req: Request, res: Response) => {
           return;
         }
 
-        res.status(400).json({ 
-          message: "There is already a user with this email that signed up manually. Please use your credentials to sign in.", 
-          status: 0 
+        res.status(400).json({
+          message:
+            "There is already a user with this email that signed up manually. Please use your credentials to sign in.",
+          status: 0,
         });
         return;
       }
 
       // User was created with Google, allow sign in
-      const requiresOnboarding = existingUser.aproved !== 'YES';
+      const requiresOnboarding = existingUser.aproved !== "YES";
       res.status(200).json({
         userId: existingUser.id,
         status: 1,
@@ -312,9 +335,9 @@ export const googleAuth = async (req: Request, res: Response) => {
     const randomPassword = Math.random().toString(36).slice(-12);
     const hashedPassword = await bcrypt.hash(randomPassword, 10);
 
-    const safeName = typeof name === 'string' ? name.trim() : '';
-    const [firstName = '', ...restNames] = safeName.split(' ');
-    const lastName = restNames.join(' ').trim();
+    const safeName = typeof name === "string" ? name.trim() : "";
+    const [firstName = "", ...restNames] = safeName.split(" ");
+    const lastName = restNames.join(" ").trim();
 
     const created = await User.create({
       email,
@@ -323,8 +346,8 @@ export const googleAuth = async (req: Request, res: Response) => {
       f_name: firstName || undefined,
       l_name: lastName || undefined,
       IsVerified: true,
-      aproved: 'NO',
-      signedWithGoogle: 'YES',
+      aproved: "NO",
+      signedWithGoogle: "YES",
       progress: 0,
     } as any);
 
@@ -356,15 +379,28 @@ export const getUserData = async (req: Request, res: Response) => {
       return;
     }
 
-    const user = await User.findByPk(userIdNumber);
+    const user = await User.findByPk(userIdNumber, {
+      include: [
+        {
+          model: UserPhotoReview,
+          as: "photoReview",
+          required: false,
+          attributes: ["photoRejectReason"],
+        },
+      ],
+    });
     if (!user) {
       res.status(404).json(0);
       return;
     }
 
-    const { password, OTP, OTPExpiry, ...userData } = user.toJSON();
+    const rawData = user.toJSON() as any;
+    const { password, OTP, OTPExpiry, photoReview, ...userData } = rawData;
 
-    res.status(200).json(userData);
+    res.status(200).json({
+      ...userData,
+      photoRejectReason: photoReview?.photoRejectReason ?? null,
+    });
   } catch (error: any) {
     console.error("Get user data error:", error);
     res.status(500).json({ message: "Server error", status: 0 });
@@ -382,7 +418,7 @@ export const forgotPassword = async (req: Request, res: Response) => {
       return;
     }
 
-    console.log('forgotPassword request:', { email });
+    console.log("forgotPassword request:", { email });
 
     const user = await User.findOne({
       where: { email: email },
@@ -405,10 +441,10 @@ export const forgotPassword = async (req: Request, res: Response) => {
     const emailSent = await sendPasswordResetEmail(user.email, resetToken);
 
     if (emailSent) {
-      console.log('forgotPassword OTP sent:', { email });
+      console.log("forgotPassword OTP sent:", { email });
       res.status(200).json(user.id);
     } else {
-      console.log('forgotPassword failed to send OTP:', { email });
+      console.log("forgotPassword failed to send OTP:", { email });
       res.status(500).json(0);
     }
   } catch (error: any) {
@@ -452,7 +488,16 @@ export const updateUsername = async (req: Request, res: Response) => {
 // Change Password or Reset Password
 export const changePassword = async (req: Request, res: Response) => {
   try {
-    const { changingpassword, restorepass, user, oldpass, pass, password, cpassword, email } = req.body;
+    const {
+      changingpassword,
+      restorepass,
+      user,
+      oldpass,
+      pass,
+      password,
+      cpassword,
+      email,
+    } = req.body;
 
     // Handle password reset (restorepass)
     if (restorepass) {
@@ -492,7 +537,10 @@ export const changePassword = async (req: Request, res: Response) => {
         return;
       }
 
-      const isPasswordValid = await bcrypt.compare(oldpass, userRecord.password);
+      const isPasswordValid = await bcrypt.compare(
+        oldpass,
+        userRecord.password,
+      );
       if (!isPasswordValid) {
         res.status(400).json({ status: 0 });
         return;
@@ -530,7 +578,9 @@ export const deleteAccount = async (req: Request, res: Response) => {
     }
 
     await user.destroy();
-    res.status(200).json({ message: "Account deleted successfully", status: 1 });
+    res
+      .status(200)
+      .json({ message: "Account deleted successfully", status: 1 });
   } catch (error: any) {
     console.error("Delete account error:", error);
     res.status(500).json({ message: "Server error", status: 0 });
@@ -543,7 +593,12 @@ export const updateSubscriptionStatus = async (req: Request, res: Response) => {
     const { userId, subscription } = req.body;
 
     if (!userId || !subscription) {
-      res.status(400).json({ message: "User ID and subscription type are required", status: 0 });
+      res
+        .status(400)
+        .json({
+          message: "User ID and subscription type are required",
+          status: 0,
+        });
       return;
     }
 
@@ -554,11 +609,11 @@ export const updateSubscriptionStatus = async (req: Request, res: Response) => {
     }
 
     await user.update({ subs: subscription });
-    
-    res.status(200).json({ 
-      message: "Subscription updated successfully", 
+
+    res.status(200).json({
+      message: "Subscription updated successfully",
       status: 1,
-      subscription 
+      subscription,
     });
   } catch (error: any) {
     console.error("Update subscription error:", error);
@@ -567,12 +622,20 @@ export const updateSubscriptionStatus = async (req: Request, res: Response) => {
 };
 
 // Update Manual Location Status
-export const updateManualLocationStatus = async (req: Request, res: Response) => {
+export const updateManualLocationStatus = async (
+  req: Request,
+  res: Response,
+) => {
   try {
     const { userId, isManualLocationUpdate } = req.body;
 
-    if (!userId || typeof isManualLocationUpdate !== 'boolean') {
-      res.status(400).json({ message: "User ID and manual location status are required", status: 0 });
+    if (!userId || typeof isManualLocationUpdate !== "boolean") {
+      res
+        .status(400)
+        .json({
+          message: "User ID and manual location status are required",
+          status: 0,
+        });
       return;
     }
 
@@ -583,15 +646,14 @@ export const updateManualLocationStatus = async (req: Request, res: Response) =>
     }
 
     await user.update({ isManualLocationUpdate });
-    
-    res.status(200).json({ 
-      message: "Manual location status updated successfully", 
+
+    res.status(200).json({
+      message: "Manual location status updated successfully",
       status: 1,
-      isManualLocationUpdate 
+      isManualLocationUpdate,
     });
   } catch (error: any) {
     console.error("Update manual location status error:", error);
     res.status(500).json({ message: "Server error", status: 0 });
   }
 };
-
