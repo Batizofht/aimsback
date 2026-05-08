@@ -91,14 +91,26 @@ export const sendMessage = async (req: Request, res: Response) => {
     const isGif =
       typeof message === "string" &&
       (message.includes("giphy.com") || message.includes("giphy.gif"));
-    const messagePreview = isGif ? "Sent a GIF 🎬" : message.substring(0, 50);
+    const isReply = typeof message === "string" && message.includes(":reply:");
+    let notificationTitle = senderName;
+    let messagePreview;
+    if (isReply) {
+      const parts = message.split(":reply:");
+      const actualMessage = parts[parts.length - 1]; // Get actual message after :reply:
+      notificationTitle = `${senderName} replied`;
+      messagePreview = actualMessage.substring(0, 50);
+    } else if (isGif) {
+      messagePreview = "Sent a GIF 🎬";
+    } else {
+      messagePreview = message.substring(0, 50);
+    }
     console.log("🔔 Push check for user", rec, {
       hasReceiver: !!receiver,
       pushEnabled: receiver?.push,
       pushValue: receiver?.push,
     });
     if (receiver && receiver.push === "true") {
-      await sendPushNotification(Number(rec), senderName, messagePreview, {
+      await sendPushNotification(Number(rec), notificationTitle, messagePreview, {
         type: "new_message",
       });
     }

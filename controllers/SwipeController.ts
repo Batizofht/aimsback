@@ -3,11 +3,13 @@
 import { Request, Response } from "express";
 import User from "../models/User";
 import Match from "../models/Match";
+import AIPromptMatching from "../models/AIPromptMatching";
 import { calculateDistance } from "../utils/distance";
 import { Op } from "sequelize";
 import { sendPushNotification } from "../utils/pushNotification";
 import Notification from "../models/Notification";
 import { queueOrSendNotification } from "../utils/photoReview";
+
 
 //////////////////////////////THESE CODES HAVE BEEN WRITTEN FROM SCRATCH AND NON AI RELATED /////////////////////////////////
 /**
@@ -161,6 +163,7 @@ export const getPotentialMatches = async (req: Request, res: Response) => {
       Orientation, // Orientation preference
       country, // Country preference
       city, // City preference
+      promptAvailable, // AI Prompt flag - if true, use AI-based matching
     } = req.method === "POST" ? req.body : req.query;
 
     // THIS CONSOSLES ARE JUST FOR TESTING DURING DEVELOPMENT
@@ -177,6 +180,7 @@ export const getPotentialMatches = async (req: Request, res: Response) => {
       Orientation,
       country,
       city,
+      promptAvailable,
     });
     /////////////////////////////////////////////////////////////
 

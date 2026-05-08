@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
 import User from "../models/User";
 import UserPhotoReview from "../models/UserPhotoReview";
+import Role from "../models/Role";
+import UserRole from "../models/UserRole";
 import bcrypt from "bcryptjs";
 import { sendOTPEmail, sendPasswordResetEmail } from "../utils/email";
 import { Op } from "sequelize";
@@ -85,6 +87,20 @@ export const registerUser = async (req: Request, res: Response) => {
       IsVerified: false,
       signedWithGoogle: "NO",
     });
+
+    // Assign default "user" role to new signups
+    try {
+      const userRole = await Role.findOne({ where: { slug: "user" } });
+      if (userRole) {
+        await UserRole.create({
+          userId: user.id,
+          roleId: userRole.id,
+        });
+      }
+    } catch (roleError) {
+      console.error("[RBAC] Error assigning default role:", roleError);
+      // Don't fail registration if role assignment fails
+    }
 
     res.status(200).json(user.id);
   } catch (error: any) {

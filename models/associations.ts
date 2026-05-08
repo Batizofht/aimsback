@@ -5,6 +5,11 @@ import Notification from "./Notification";
 import PushToken from "./PushToken";
 import CallLog from "./CallLog";
 import UserPhotoReview from "./UserPhotoReview";
+import AIPromptMatching from "./AIPromptMatching";
+import Role from "./Role";
+import UserRole from "./UserRole";
+import Admin from "./Admin";
+import AdminRole from "./AdminRole";
 
 export const defineAssociations = () => {
   // User associations
@@ -17,6 +22,23 @@ export const defineAssociations = () => {
   User.hasMany(CallLog, { foreignKey: 'caller_id', as: 'outgoingCalls' });
   User.hasMany(CallLog, { foreignKey: 'callee_id', as: 'incomingCalls' });
   User.hasOne(UserPhotoReview, { foreignKey: 'userId', as: 'photoReview' });
+  User.hasOne(AIPromptMatching, { foreignKey: 'user_id', as: 'aiPrompt' });
+
+  // User Role associations (for regular app users)
+  User.belongsToMany(Role, { through: UserRole, foreignKey: "userId", as: "roles" });
+  Role.belongsToMany(User, { through: UserRole, foreignKey: "roleId", as: "users" });
+
+  UserRole.belongsTo(User, { foreignKey: "userId", as: "user" });
+  UserRole.belongsTo(Role, { foreignKey: "roleId", as: "role" });
+  UserRole.belongsTo(User, { foreignKey: "assignedBy", as: "assigner" });
+
+  // Admin associations
+  Admin.belongsToMany(Role, { through: AdminRole, foreignKey: "adminId", as: "roles" });
+  Role.belongsToMany(Admin, { through: AdminRole, foreignKey: "roleId", as: "admins" });
+
+  AdminRole.belongsTo(Admin, { foreignKey: "adminId", as: "admin" });
+  AdminRole.belongsTo(Role, { foreignKey: "roleId", as: "role" });
+  AdminRole.belongsTo(Admin, { foreignKey: "assignedBy", as: "assigner" });
 
   // Match associations
   Match.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
@@ -39,6 +61,9 @@ export const defineAssociations = () => {
 
   // UserPhotoReview associations
   UserPhotoReview.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+
+  // AIPromptMatching associations
+  AIPromptMatching.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
 
 };
 

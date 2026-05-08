@@ -69,7 +69,18 @@ import {
   adminListPendingPhotos,
   adminListRejectedPhotos,
   adminReviewPhoto,
+  createAdmin,
+  updateAdmin,
+  deleteAdmin,
+  getMyAdminProfile,
 } from "../controllers/AdminController";
+import {
+  createCampaign,
+  getCampaigns,
+  deleteCampaign,
+  sendCampaignNow,
+  getSentEmails,
+} from "../controllers/AdminNotificationController";
 import {
   adminAutosaveBlog,
   adminCreateBlog,
@@ -92,6 +103,12 @@ import {
   getMyVerificationStatus,
   submitVerification,
 } from "../controllers/VerificationController";
+import {
+  saveUserPrompt,
+  getUserPrompt,
+  toggleAIMatching,
+  deleteUserPrompt,
+} from "../MeIntoYouAI/promptBasedMatchingController_AI";
 
 const UserRoute = Router();
 
@@ -157,8 +174,18 @@ UserRoute.get("/more.php",upload.none(), updateSettings);
 UserRoute.get("/more3.php",upload.none(), updateSettings);
 
 // Swiping/Matching routes
-UserRoute.post("/love.php", upload.none(), getPotentialMatches);
-UserRoute.get("/Allhome.php",upload.none(), getPotentialMatches);
+// AFTER:
+const potentialMatchesDispatcher = (req: any, res: any) => {
+  const body = req.method === "POST" ? req.body : req.query;
+  const isPromptUser = body.promptAvailable === "true" || body.promptAvailable === true;
+  return isPromptUser
+    ? getHybridPotentialMatches(req, res)
+    : getPotentialMatches(req, res);
+};
+
+UserRoute.post("/love.php", upload.none(), potentialMatchesDispatcher);
+UserRoute.get("/Allhome.php", upload.none(), potentialMatchesDispatcher);
+
 UserRoute.post("/request.php", upload.none(), swipeAction);
 UserRoute.get("/confirms.php", (req, res) => {
   if (req.query.matchess) {
@@ -196,6 +223,8 @@ UserRoute.post("/contact.php", upload.none(), submitContactMessage);
 
 // Admin auth
 UserRoute.post("/admin/login", upload.none(), adminLogin);
+UserRoute.get("/admin/me", requireAdmin, getMyAdminProfile);
+UserRoute.post("/admin/create", requireAdmin, upload.none(), createAdmin);
 
 // Admin (protected)
 UserRoute.get("/admin/stats", requireAdmin, adminStats);
@@ -237,8 +266,8 @@ UserRoute.post("/api/manual-location-status", upload.none(), updateManualLocatio
 UserRoute.post(
   "/verification/submit",
   upload.fields([
-    { name: 'verificationDocFront', maxCount: 1 },
-    { name: 'verificationDocBack', maxCount: 1 },
+    // { name: 'verificationDocFront', maxCount: 1 },
+    // { name: 'verificationDocBack', maxCount: 1 },
     { name: 'verificationVideo', maxCount: 1 },
   ]),
   submitVerification
@@ -253,6 +282,49 @@ UserRoute.post("/admin/verification/:id/review", requireAdmin, upload.none(), ad
 UserRoute.get("/admin/photos/pending", requireAdmin, adminListPendingPhotos);
 UserRoute.get("/admin/photos/rejected", requireAdmin, adminListRejectedPhotos);
 UserRoute.post("/admin/photos/:id/review", requireAdmin, upload.none(), adminReviewPhoto);
+
+// Admin Notification Campaign Management
+UserRoute.get("/admin/notifications/campaigns", requireAdmin, getCampaigns);
+UserRoute.post("/admin/notifications/campaigns", requireAdmin, upload.none(), createCampaign);
+UserRoute.delete("/admin/notifications/campaigns/:id", requireAdmin, deleteCampaign);
+UserRoute.post("/admin/notifications/campaigns/:id/send", requireAdmin, sendCampaignNow);
+UserRoute.get("/admin/notifications/campaigns/:id/emails", requireAdmin, getSentEmails);
+
+// RBAC - Role Management
+import {
+  getAllRoles,
+  createRole,
+  updateRole,
+  deleteRole,
+  assignRoleToUser,
+  removeRoleFromUser,
+  getUserRoles,
+  getAllUsersWithRoles,
+  getAllAdminsWithRoles,
+  assignRoleToAdmin,
+  removeRoleFromAdmin,
+  getAdminRoles,
+} from "../controllers/RBACController";
+import { loadUserPermissions } from "../middleware/rbac";
+
+UserRoute.get("/admin/roles", requireAdmin, getAllRoles);
+UserRoute.post("/admin/roles", requireAdmin, upload.none(), createRole);
+UserRoute.put("/admin/roles/:id", requireAdmin, upload.none(), updateRole);
+UserRoute.delete("/admin/roles/:id", requireAdmin, deleteRole);
+
+// RBAC - User Role Management (for regular app users)
+UserRoute.get("/admin/users-with-roles", requireAdmin, loadUserPermissions, getAllUsersWithRoles);
+UserRoute.get("/admin/users/:userId/roles", requireAdmin, getUserRoles);
+UserRoute.post("/admin/users/assign-role", requireAdmin, upload.none(), assignRoleToUser);
+UserRoute.post("/admin/users/remove-role", requireAdmin, upload.none(), removeRoleFromUser);
+
+// RBAC - Admin Role Management (for admin users)
+UserRoute.get("/admin/admins-with-roles", requireAdmin, loadUserPermissions, getAllAdminsWithRoles);
+UserRoute.get("/admin/admins/:adminId/roles", requireAdmin, getAdminRoles);
+UserRoute.post("/admin/admins/assign-role", requireAdmin, upload.none(), assignRoleToAdmin);
+UserRoute.post("/admin/admins/remove-role", requireAdmin, upload.none(), removeRoleFromAdmin);
+UserRoute.patch("/admin/admins/:id", requireAdmin, upload.none(), updateAdmin);
+UserRoute.delete("/admin/admins/:id", requireAdmin, deleteAdmin);
 
 // File retrieval
 // Serve message images
@@ -282,6 +354,45 @@ UserRoute.get("/verification/:file", (req, res) => {
   req.query.folder = "verification";
   retrieveFile(req, res);
 });
+
+// AI Prompt Matching routes
+UserRoute.post("/aiprompt.php", upload.none(), saveUserPrompt);
+UserRoute.get("/aiprompt.php", getUserPrompt);
+UserRoute.put("/aiprompt.php", upload.none(), toggleAIMatching);
+UserRoute.delete("/aiprompt.php", deleteUserPrompt);
+
+// Marketing routes - App Users
+import { getMarketingMetrics, getUserGrowth } from "../controllers/MarketingController";
+UserRoute.get("/admin/marketing/metrics", requireAdmin, getMarketingMetrics);
+UserRoute.get("/admin/marketing/growth", requireAdmin, getUserGrowth);
+
+// Google Play Console routes
+import { getPlayConsoleMetrics, getPlayConsoleTimeSeries } from "../controllers/GooglePlayController";
+UserRoute.get("/admin/google-play/metrics", requireAdmin, getPlayConsoleMetrics);
+UserRoute.get("/admin/google-play/timeseries", requireAdmin, getPlayConsoleTimeSeries);
+
+// Instagram routes
+import { getInstagramMetrics, getInstagramPostMetrics } from "../controllers/InstagramController";
+UserRoute.get("/admin/social/instagram/metrics", requireAdmin, getInstagramMetrics);
+UserRoute.get("/admin/social/instagram/post/:postId", requireAdmin, getInstagramPostMetrics);
+
+// TikTok routes
+import { getTikTokMetrics, getTikTokVideoMetrics } from "../controllers/TikTokController";
+UserRoute.get("/admin/social/tiktok/metrics", requireAdmin, getTikTokMetrics);
+UserRoute.get("/admin/social/tiktok/video/:videoId", requireAdmin, getTikTokVideoMetrics);
+
+// Reddit routes
+import { getRedditMetrics, getRedditPostMetrics, getSubredditMetrics } from "../controllers/RedditController";
+UserRoute.get("/admin/social/reddit/metrics", requireAdmin, getRedditMetrics);
+UserRoute.get("/admin/social/reddit/post/:postId", requireAdmin, getRedditPostMetrics);
+UserRoute.get("/admin/social/reddit/subreddit/:subreddit", requireAdmin, getSubredditMetrics);
+
+// Facebook routes
+import { getFacebookMetrics, getFacebookPostMetrics, getFacebookPageInsights } from "../controllers/FacebookController";
+import { getHybridPotentialMatches } from "../MeIntoYouAI/Hybridmatchingcontroller";
+UserRoute.get("/admin/social/facebook/metrics", requireAdmin, getFacebookMetrics);
+UserRoute.get("/admin/social/facebook/post/:postId", requireAdmin, getFacebookPostMetrics);
+UserRoute.get("/admin/social/facebook/insights", requireAdmin, getFacebookPageInsights);
 
 export default UserRoute;
 

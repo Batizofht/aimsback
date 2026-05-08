@@ -30,10 +30,10 @@ export const submitVerification = async (req: Request, res: Response) => {
       return
     }
 
-    if (!verificationDocType) {
-      res.status(400).json({ status: 0, message: 'Missing docType' })
-      return
-    }
+    // if (!verificationDocType) {
+    //   res.status(400).json({ status: 0, message: 'Missing docType' })
+    //   return
+    // }
 
     const user = await User.findByPk(userId)
     if (!user) {
@@ -47,51 +47,54 @@ export const submitVerification = async (req: Request, res: Response) => {
         }
       | undefined
 
-    const docFront = files?.verificationDocFront?.[0]?.filename || null
-    const docBack = files?.verificationDocBack?.[0]?.filename || null
+    // const docFront = files?.verificationDocFront?.[0]?.filename || null
+    // const docBack = files?.verificationDocBack?.[0]?.filename || null
     const video = files?.verificationVideo?.[0]?.filename || null
 
-    if (!docFront || !video) {
+    if ( !video) {
       res.status(400).json({ status: 0, message: 'Document front image and verification video are required' })
       return
     }
 
     // Content moderation (NOT face validation): block explicit content in verification docs.
     // Video is intentionally not moderated here (recorded selfie flow will handle it).
-    const verificationDir = path.join('uploads', 'verification')
-    const docFrontPath = path.join(verificationDir, docFront)
-    const docFrontAllowed = await moderateImage(docFrontPath, { allowShirtless: false })
-    if (!docFrontAllowed) {
-      try { fs.unlinkSync(docFrontPath) } catch {}
-      if (docBack) {
-        try { fs.unlinkSync(path.join(verificationDir, docBack)) } catch {}
-      }
-      if (video) {
-        try { fs.unlinkSync(path.join(verificationDir, video)) } catch {}
-      }
-      res.status(400).json({ status: 0, message: 'One or more images violate our community policies.' })
-      return
-    }
+    // const verificationDir = path.join('uploads', 'verification')
+    // const docFrontPath = path.join(verificationDir, docFront)
+    // const docFrontAllowed = await moderateImage(docFrontPath, { allowShirtless: false })
+    // if (!docFrontAllowed) {
+    //   try { fs.unlinkSync(docFrontPath) } catch {}
+      // if (docBack) {
+      //   try { fs.unlinkSync(path.join(verificationDir, docBack)) } catch {}
+      // }
+      // if (video) {
+      //   try { fs.unlinkSync(path.join(verificationDir, video)) } catch {}
+      // }
+      // res.status(400).json({ status: 0, message: 'One or more images violate our community policies.' })
+      // return
+    // }
+    //  if (video) {
+    //     try { fs.unlinkSync(path.join(verificationDir, video)) } catch {}
+    //   }
 
-    if (docBack) {
-      const docBackPath = path.join(verificationDir, docBack)
-      const docBackAllowed = await moderateImage(docBackPath, { allowShirtless: false })
-      if (!docBackAllowed) {
-        try { fs.unlinkSync(docFrontPath) } catch {}
-        try { fs.unlinkSync(docBackPath) } catch {}
-        if (video) {
-          try { fs.unlinkSync(path.join(verificationDir, video)) } catch {}
-        }
-        res.status(400).json({ status: 0, message: 'One or more images violate our community policies.' })
-        return
-      }
-    }
+    // if (docBack) {
+    //   const docBackPath = path.join(verificationDir, docBack)
+    //   const docBackAllowed = await moderateImage(docBackPath, { allowShirtless: false })
+    //   if (!docBackAllowed) {
+    //     try { fs.unlinkSync(docFrontPath) } catch {}
+    //     try { fs.unlinkSync(docBackPath) } catch {}
+    //     if (video) {
+    //       try { fs.unlinkSync(path.join(verificationDir, video)) } catch {}
+    //     }
+    //     res.status(400).json({ status: 0, message: 'One or more images violate our community policies.' })
+    //     return
+    //   }
+    // }
 
     await user.update({
       verificationStatus: 'pending',
-      verificationDocType,
-      verificationDocFront: docFront,
-      verificationDocBack: docBack,
+      // verificationDocType,
+      // verificationDocFront: docFront,
+      // verificationDocBack: docBack,
       verificationVideo: video,
       verificationSubmittedAt: new Date(),
       verificationReviewedAt: null,

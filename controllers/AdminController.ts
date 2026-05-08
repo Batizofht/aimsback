@@ -12,11 +12,14 @@ import Message from "../models/Message";
 import Notification from "../models/Notification";
 import PushToken from "../models/PushToken";
 import CallLog from "../models/CallLog";
+import UserRole from "../models/UserRole";
 import {
   sendBlockedEmail,
   sendWarningEmail,
   sendUnblockedEmail,
 } from "../utils/email";
+import Role from "../models/Role";
+import AdminRole from "../models/AdminRole";
 import UserPhotoReview from "../models/UserPhotoReview";
 import {
   approveUserPhoto,
@@ -27,6 +30,212 @@ import {
 const TOKEN_TTL_DAYS = 14;
 
 const createToken = () => crypto.randomBytes(32).toString("hex");
+
+export const updateAdmin = async (req: Request, res: Response) => {
+  try {
+    const adminId = Number(req.params.id);
+    const { email, f_name, l_name, password, roleIds } = req.body;
+
+    if (!adminId || Number.isNaN(adminId)) {
+      res.status(400).json({ status: 0, message: "Invalid admin id" });
+      return;
+    }
+
+    const admin = await Admin.findByPk(adminId);
+    if (!admin) {
+      res.status(404).json({ status: 0, message: "Admin not found" });
+      return;
+    }
+
+    if (email && email !== admin.email) {
+      const existing = await Admin.findOne({ where: { email } });
+      if (existing) {
+        res.status(400).json({ status: 0, message: "Email already in use" });
+        return;
+      }
+      (admin as any).email = email;
+    }
+
+    if (typeof f_name !== "undefined") (admin as any).f_name = f_name;
+    if (typeof l_name !== "undefined") (admin as any).l_name = l_name;
+
+    if (typeof password === "string" && password.trim()) {
+      (admin as any).passwordHash = await bcrypt.hash(password, 10);
+    }
+
+    await admin.save();
+
+    if (Array.isArray(roleIds)) {
+      const desiredRoleIds = roleIds.map((r: any) => Number(r)).filter((n: number) => !Number.isNaN(n));
+      const existingAdminRoles = await AdminRole.findAll({ where: { adminId } });
+      const existingRoleIds = new Set(existingAdminRoles.map((ar: any) => Number(ar.roleId)));
+      const desiredRoleIdSet = new Set(desiredRoleIds);
+
+      // Remove roles not desired
+      const toRemove = Array.from(existingRoleIds).filter((rid) => !desiredRoleIdSet.has(rid));
+      if (toRemove.length > 0) {
+        await AdminRole.destroy({ where: { adminId, roleId: toRemove } as any });
+      }
+
+      // Add missing roles
+      const assignedBy = (req as any).admin?.id;
+      for (const rid of desiredRoleIds) {
+        if (!existingRoleIds.has(rid)) {
+          await AdminRole.create({ adminId, roleId: rid, assignedBy } as any);
+        }
+      }
+    }
+
+    res.status(200).json({ status: 1, message: "Admin updated" });
+  } catch (error: any) {
+    console.error("Update admin error:", error);
+    res.status(500).json({ status: 0, message: "Server error", error: error.message });
+  }
+};
+
+export const deleteAdmin = async (req: Request, res: Response) => {
+  try {
+    const adminId = Number(req.params.id);
+    if (!adminId || Number.isNaN(adminId)) {
+      res.status(400).json({ status: 0, message: "Invalid admin id" });
+      return;
+    }
+
+    // prevent self delete
+    const requesterId = (req as any).admin?.id;
+    if (requesterId && Number(requesterId) === adminId) {
+      res.status(400).json({ status: 0, message: "You cannot delete your own admin account" });
+      return;
+    }
+
+    await AdminRole.destroy({ where: { adminId } });
+    const deleted = await Admin.destroy({ where: { id: adminId } });
+
+    if (!deleted) {
+      res.status(404).json({ status: 0, message: "Admin not found" });
+      return;
+    }
+
+    res.status(200).json({ status: 1, message: "Admin deleted" });
+  } catch (error: any) {
+    console.error("Delete admin error:", error);
+    res.status(500).json({ status: 0, message: "Server error", error: error.message });
+  }
+};
+
+export const getMyAdminProfile = async (req: Request, res: Response) => {
+  try {
+    const adminId = (req as any).admin?.id || (req as any).adminId;
+    if (!adminId) {
+      res.status(401).json({ status: 0, message: "Not authenticated" });
+      return;
+    }
+
+    const admin = await Admin.findByPk(adminId, {
+      attributes: ["id", "email", "f_name", "l_name", "isSuperAdmin", "isActive"],
+      include: [
+        {
+          model: Role,
+          as: "roles",
+          where: { isActive: true },
+          required: false,
+          through: { attributes: [] },
+        },
+      ],
+    });
+
+    if (!admin) {
+      res.status(404).json({ status: 0, message: "Admin not found" });
+      return;
+    }
+
+    const roles = ((admin as any).roles || []) as any[];
+    const pages = Array.from(
+      new Set(
+        roles.flatMap((r) => (Array.isArray(r.permissions) ? r.permissions : []))
+      )
+    );
+
+    res.status(200).json({
+      status: 1,
+      admin: {
+        id: (admin as any).id,
+        email: (admin as any).email,
+        f_name: (admin as any).f_name,
+        l_name: (admin as any).l_name,
+        isSuperAdmin: (admin as any).isSuperAdmin,
+        isActive: (admin as any).isActive,
+      },
+      pages,
+    });
+  } catch (error: any) {
+    console.error("Get my admin profile error:", error);
+    res.status(500).json({ status: 0, message: "Server error", error: error.message });
+  }
+};
+
+export const createAdmin = async (req: Request, res: Response) => {
+  try {
+    const { email, password, f_name, l_name, roleIds } = req.body;
+
+    if (!email || !password) {
+      res.status(400).json({ status: 0, message: "Email and password are required" });
+      return;
+    }
+
+    // Check if admin already exists
+    const existingAdmin = await Admin.findOne({ where: { email } });
+    if (existingAdmin) {
+      res.status(400).json({ status: 0, message: "Admin with this email already exists" });
+      return;
+    }
+
+    // Hash password
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    // Create admin
+    const admin = await Admin.create({
+      email,
+      passwordHash,
+      f_name,
+      l_name,
+      isActive: true,
+      isSuperAdmin: false,
+    });
+
+    // Assign roles if provided
+    if (roleIds && Array.isArray(roleIds) && roleIds.length > 0) {
+      const assignedBy = (req as any).admin?.id;
+      for (const roleId of roleIds) {
+        await AdminRole.findOrCreate({
+          where: { adminId: admin.id, roleId },
+          defaults: { adminId: admin.id, roleId, assignedBy },
+        });
+      }
+    }
+
+    res.status(201).json({
+      status: 1,
+      message: "Admin created successfully",
+      admin: {
+        id: admin.id,
+        email: admin.email,
+        f_name: admin.f_name,
+        l_name: admin.l_name,
+        isActive: admin.isActive,
+        isSuperAdmin: admin.isSuperAdmin,
+        createdAt: admin.createdAt,
+      },
+    });
+  } catch (error: any) {
+    console.error("Create admin error:", error);
+    res.status(500).json({
+      status: 0,
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
 
 export const adminLogin = async (req: Request, res: Response) => {
   try {
@@ -315,9 +524,28 @@ export const adminListUsers = async (req: Request, res: Response) => {
       attributes: {
         exclude: ["password", "OTP", "OTPExpiry"],
       },
+      include: [
+        {
+          model: (await import("../models/AIPromptMatching")).default,
+          as: "aiPrompt",
+          attributes: ["prompt", "isEnabled", "lastUpdated"],
+        },
+      ],
     });
 
-    res.status(200).json(users);
+    // Transform to include AI prompt fields
+    const usersWithPrompt = users.map((u: any) => {
+      const json = u.toJSON();
+      return {
+        ...json,
+        hasAIPrompt: !!json.aiPrompt?.prompt,
+        aiPrompt: json.aiPrompt?.prompt || null,
+        aiPromptLastUpdated: json.aiPrompt?.lastUpdated || null,
+        aiPromptEnabled: json.aiPrompt?.isEnabled || false,
+      };
+    });
+
+    res.status(200).json(usersWithPrompt);
   } catch (e) {
     console.error("Admin list users error:", e);
     res.status(500).json({ status: 0, message: "Server error" });
@@ -396,6 +624,9 @@ export const adminDeleteUser = async (req: Request, res: Response) => {
         [Op.or]: [{ reporter_id: userId }, { reported_user_id: userId }],
       } as any,
     });
+
+    // Ensure RBAC assignments are removed (some environments may not enforce FK cascade)
+    await UserRole.destroy({ where: { userId } });
 
     await user.destroy();
     res.status(200).json({ status: 1 });

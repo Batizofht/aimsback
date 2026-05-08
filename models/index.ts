@@ -8,6 +8,9 @@ import Admin from "./Admin";
 import AdminSession from "./AdminSession";
 import CallLog from "./CallLog";
 import Blog from "./Blog";
+import AIPromptMatching from "./AIPromptMatching";
+import SentEmail from "./SentEmail";
+import NotificationCampaign from "./NotificationCampaign";
 
-export { User, Match, Message, Notification, PushToken, ContactMessage, Admin, AdminSession, CallLog, Blog };
+export { User, Match, Message, Notification, PushToken, ContactMessage, Admin, AdminSession, CallLog, Blog, AIPromptMatching, SentEmail, NotificationCampaign };
 

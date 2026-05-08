@@ -94,6 +94,14 @@ meintoyouapp.authenticate().then(async () => {
         }
         await seedAdminIfNeeded();
         
+        // Initialize default RBAC roles
+        try {
+          const { initializeRoles } = await import("./controllers/RBACController");
+          await initializeRoles();
+        } catch (roleError) {
+          console.error("[RBAC] Error initializing roles:", roleError);
+        }
+        
         // Mark all users as offline on server start
         await User.update({ status: 'Offline' }, { where: {} });
         console.log("All users marked as Offline on server start");
