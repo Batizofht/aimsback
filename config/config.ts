@@ -2,7 +2,7 @@ import { Sequelize } from "sequelize";
 
 /* ================================ REPLACE WITH THE SUPABASE CONNECTION STRING ============== */
 
-export const meintoyouapp = new Sequelize('postgresql://postgres.jbdmaoohlspxdlpntxhb:EWFQFWREFGWEFGWRFGWERRWEFGWREFW@aws-1-us-east-2.pooler.supabase.com:6543/postgres', {
+export const meintoyouapp = new Sequelize('postgresql://postgres:ASDCADSCASDCSADC@db.jbdmaoohlspxdlpntxhb.supabase.co:5432/postgres', {
   dialect: "postgres",
   dialectOptions: {
     ssl: {

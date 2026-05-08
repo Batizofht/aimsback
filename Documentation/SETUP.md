@@ -39,7 +39,7 @@ The server will run on port 4001 by default.
 ## API Base URL
 All endpoints are prefixed with `/vava`
 
-Example: `http://192.168.1.64:4001/vava/register.php`
+Example: `https://meintoyoubackend.onrender.com/vava/register.php`
 
 ## Important Notes
 
