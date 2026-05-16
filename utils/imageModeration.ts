@@ -57,7 +57,7 @@ export async function moderateImage(
     // These thresholds catch actual porn while letting normal photos through
     if (porn > 0.75) {
       block("Very high porn confidence");
-    } else if (porn > 0.52 && (hasExplicitPatterns || skinAnalysis.bodySkinRatio > 0.25)) {
+    } else if (porn > 0.50 && (hasExplicitPatterns || skinAnalysis.bodySkinRatio > 0.25)) {
       block("Porn confidence + skin/patterns");
     }
 

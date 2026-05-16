@@ -113,6 +113,7 @@ export const createCampaign = async (req: Request, res: Response) => {
       recipientType,
       scheduledAt,
       specificUserIds,
+      sendNow,
     } = req.body;
 
     if (!title || !message || !type || !recipientType) {
@@ -123,6 +124,7 @@ export const createCampaign = async (req: Request, res: Response) => {
     // Get target users count
     const targetUsers = await getTargetUsers(recipientType, specificUserIds);
 
+    const shouldSendNow = sendNow !== false && !scheduledAt;
     const adminId = (req as any).admin?.id;
     const campaign = await NotificationCampaign.create({
       title,
@@ -140,14 +142,16 @@ export const createCampaign = async (req: Request, res: Response) => {
       specificUserIds: specificUserIds || [],
     } as any);
 
-    // If no schedule, send immediately
-    if (!scheduledAt) {
-      // Send in background
+    if (shouldSendNow) {
       sendCampaignNotifications((campaign as any).id, adminId);
     }
 
     res.status(201).json({
-      message: scheduledAt ? "Campaign scheduled" : "Campaign created and sending",
+      message: scheduledAt
+        ? "Campaign scheduled"
+        : shouldSendNow
+        ? "Campaign created and sending"
+        : "Campaign saved as draft",
       status: 1,
       campaign,
     });

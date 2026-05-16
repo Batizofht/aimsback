@@ -76,7 +76,7 @@ interface EmbeddingCache {
 }
 
 interface UserProfile {
-  id: number;
+  id?: number;
   bio?: string;
   interest?: string;
   fors?: string;
@@ -92,13 +92,13 @@ interface UserProfile {
   drinking?: string;
   exercise?: string;
   languages?: string;
-  pets_dogs?: boolean;
-  pets_cats?: boolean;
-  pets_other?: boolean;
+  pets_dogs?: boolean | null;
+  pets_cats?: boolean | null;
+  pets_other?: boolean | null;
   loveLanguages?: string;
   lovelanguages?: string;
-  hasKids?: boolean;
-  wantsKids?: boolean;
+  hasKids?: boolean | null;
+  wantsKids?: boolean | null;
   relationshipStatus?: string;
   height_cm?: number;
   lats?: string;
@@ -161,7 +161,7 @@ const buildSyntheticProfile = (user: UserProfile): string => {
 // UTILITY: Preference extraction with NLP patterns
 // ─────────────────────────────────────────────────────────────
 
-const extractAgeFromText = (text: string): { min: number; max: number } | null => {
+const extractAgeFromText = (text: string): { min: number; max: number } | undefined => {
   const patterns = [
     /(\d+)\s*(?:-\s*|to\s*|–\s*)(\d+)\s*(?:years?\s*old|y\.?o\.?|age)?/i,
     /(?:between\s+)(\d+)(?:\s+and\s+|\s*-\s*)(\d+)/i,
@@ -180,10 +180,10 @@ const extractAgeFromText = (text: string): { min: number; max: number } | null =
       return { min: Math.max(18, age - 5), max: age + 5 };
     }
   }
-  return null;
+  return undefined;
 };
 
-const extractDistanceFromText = (text: string): number | null => {
+const extractDistanceFromText = (text: string): number | undefined => {
   const patterns = [
     /within\s+(\d+)\s*(km|kilometers?|miles?|mi)/i,
     /(\d+)\s*(km|kilometers?|miles?|mi)\s*(?:radius|away|distance)/i,
@@ -203,10 +203,10 @@ const extractDistanceFromText = (text: string): number | null => {
       if (match[0].toLowerCase().includes("same")) return 15;
     }
   }
-  return null;
+  return undefined;
 };
 
-const extractLocationFromText = (text: string): string | null => {
+const extractLocationFromText = (text: string): string | undefined => {
   const patterns = [
     /(?:in|near|around|from|living\s+in|based\s+in|located\s+in)\s+([A-Za-z\s]+(?:,\s*[A-Za-z\s]+)?)/i,
     /([A-Za-z\s]+(?:,\s*[A-Za-z\s]+)?)\s*(?:area|region|city)/i,
@@ -218,10 +218,10 @@ const extractLocationFromText = (text: string): string | null => {
       return match[1].trim().replace(/[^\w\s,]/g, "");
     }
   }
-  return null;
+  return undefined;
 };
 
-const extractInterestsFromText = (text: string): string[] | null => {
+const extractInterestsFromText = (text: string): string[] | undefined => {
   const patterns = [
     /(?:interested\s+in|like|love|enjoy|into|passionate\s+about)\s+([^.]+)/i,
     /hobbies?\s*(?:include|:)?\s+([^.]+)/i,
@@ -236,10 +236,10 @@ const extractInterestsFromText = (text: string): string[] | null => {
         .filter(s => s.length > 2);
     }
   }
-  return null;
+  return undefined;
 };
 
-const extractRelationshipType = (text: string): string | null => {
+const extractRelationshipType = (text: string): string | undefined => {
   const types = [
     { keywords: ["long-term", "serious", "marriage", "commitment", "life partner"], value: "serious" },
     { keywords: ["casual", "fun", "dating", "short-term"], value: "casual" },
@@ -251,7 +251,7 @@ const extractRelationshipType = (text: string): string | null => {
   for (const type of types) {
     if (type.keywords.some(k => lower.includes(k))) return type.value;
   }
-  return null;
+  return undefined;
 };
 
 const extractDealbreakers = (text: string): string[] => {
@@ -427,8 +427,8 @@ Generate one warm, specific match reason.`
 
     if (!response.ok) throw new Error("LLM API error");
 
-    const data = await response.json();
-    const reason = data.choices?.[0]?.message?.content?.trim() || 
+    const data: any = await response.json();
+    const reason = data.choices?.[0]?.message?.content?.trim() ||
                    data.choices?.[0]?.text?.trim() ||
                    data.response?.trim();
 
@@ -825,7 +825,7 @@ export const getAIPotentialMatches = async (req: Request, res: Response) => {
 
         if (result.score >= minThreshold) {
           aiResults.push({
-            userId: candidate.user.id,
+            userId: candidate.user.id!,
             compatibilityScore: result.score,
             matchReason: result.reason,
             semanticScore: result.semanticScore,
@@ -912,34 +912,7 @@ export const getAIPotentialMatches = async (req: Request, res: Response) => {
 
 export const saveUserPrompt = async (req: Request, res: Response) => {
   try {
-    const { userId, prompt, isEnabled } = req.body;
-    
-    // Handle isEnabled toggle without prompt (from Settings.js)
-    if (userId && isEnabled !== undefined && !prompt) {
-      const enabled = isEnabled === 'true' || isEnabled === true;
-      
-      // Find or create record
-      let aiPrompt = await AIPromptMatching.findOne({ where: { user_id: userId } });
-      
-      if (!aiPrompt) {
-        // Create empty record with isEnabled setting
-        aiPrompt = await AIPromptMatching.create({
-          user_id: userId,
-          prompt: '',
-          isEnabled: enabled,
-          lastUpdated: new Date(),
-        });
-      } else {
-        await aiPrompt.update({ isEnabled: enabled, lastUpdated: new Date() });
-      }
-      
-      res.status(200).json({
-        message: `AI matching ${enabled ? "enabled" : "disabled"}`,
-        status: 1,
-        isEnabled: aiPrompt.isEnabled,
-      });
-      return;
-    }
+    const { userId, prompt } = req.body;
     
     if (!userId || !prompt) {
       res.status(400).json({ message: "User ID and prompt are required", status: 0 });
@@ -980,7 +953,7 @@ export const saveUserPrompt = async (req: Request, res: Response) => {
     }
 
     // Invalidate cache
-    delete embeddingCache[userId];
+    delete embeddingCache[userId as any];
     
     res.status(200).json({
       message: "Prompt saved successfully",
@@ -1014,9 +987,9 @@ export const getUserPrompt = async (req: Request, res: Response) => {
     }
     
     const aiPrompt = await AIPromptMatching.findOne({
-      where: { user_id: userId },
+      where: { user_id: Number(userId) },
     });
-    
+
     if (!aiPrompt) {
       res.status(200).json({ hasPrompt: false, prompt: null, isEnabled: false });
       return;
@@ -1048,25 +1021,31 @@ export const toggleAIMatching = async (req: Request, res: Response) => {
       res.status(400).json({ message: "User ID and enabled status are required", status: 0 });
       return;
     }
+
+    const userIdNum = Number(userId);
+    if (!Number.isFinite(userIdNum)) {
+      res.status(400).json({ message: "User ID must be a valid number", status: 0 });
+      return;
+    }
+
+    const enabledBool =
+      typeof enabled === "boolean"
+        ? enabled
+        : String(enabled).toLowerCase() === "true";
     
-    let aiPrompt = await AIPromptMatching.findOne({
-      where: { user_id: userId },
+    const aiPrompt = await AIPromptMatching.findOne({
+      where: { user_id: userIdNum },
     });
     
     if (!aiPrompt) {
-      // Create record if doesn't exist (for toggle before adding prompt)
-      aiPrompt = await AIPromptMatching.create({
-        user_id: userId,
-        prompt: '',
-        isEnabled: enabled,
-        lastUpdated: new Date(),
-      });
-    } else {
-      await aiPrompt.update({ isEnabled: enabled, lastUpdated: new Date() });
+      res.status(404).json({ message: "No prompt found for user", status: 0 });
+      return;
     }
     
+    await aiPrompt.update({ isEnabled: enabledBool });
+    
     res.status(200).json({
-      message: `AI matching ${enabled ? "enabled" : "disabled"}`,
+      message: `AI matching ${enabledBool ? "enabled" : "disabled"}`,
       status: 1,
       isEnabled: aiPrompt.isEnabled,
     });
@@ -1084,18 +1063,24 @@ export const toggleAIMatching = async (req: Request, res: Response) => {
 export const deleteUserPrompt = async (req: Request, res: Response) => {
   try {
     const { userId } = req.query;
-    
-    if (!userId) {
+
+    if (!userId || typeof userId !== 'string') {
       res.status(400).json({ message: "User ID is required", status: 0 });
       return;
     }
-    
+
+    const userIdNum = parseInt(userId, 10);
+    if (isNaN(userIdNum)) {
+      res.status(400).json({ message: "Invalid User ID", status: 0 });
+      return;
+    }
+
     await AIPromptMatching.destroy({
-      where: { user_id: userId },
+      where: { user_id: userIdNum },
     });
     
     // Invalidate cache
-    delete embeddingCache[userId];
+    delete embeddingCache[userId as any];
     
     res.status(200).json({ message: "Prompt deleted successfully", status: 1 });
     

@@ -14,5 +14,6 @@ export interface NotificationInterface {
     l_name?: string;
     profile?: string;
     verificationStatus?: "unverified" | "pending" | "verified" | "rejected";
+    
   };
 }

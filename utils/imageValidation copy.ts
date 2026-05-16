@@ -107,14 +107,16 @@ async function detectFace(imagePath: string): Promise<boolean> {
     const faceRatio = facePixels / faceRegionPixels;
     const totalSkinRatio = totalSkinPixels / totalPixels;
 
+    // Face detection thresholds
+    // hasFace: detectable skin in face region (>2% allows full-body shots with visible face)
+    // Sky/wall/object photos have 0% skin, real face photos have at least 2-10%
     const hasFace = faceRatio > 0.02 && facePixels > 80; // At least 2% and 80 skin pixels
-    // Relaxed upper bound — close-up portraits can exceed 80% skin pixels and should still pass
-    const hasReasonableSkin = totalSkinRatio > 0.03 && totalSkinRatio < 0.95;
-
+    const hasReasonableSkin = totalSkinRatio > 0.03 && totalSkinRatio < 0.80; // Wider range for various poses
+    
+    // RELAXED: Only check for obvious non-photos (uniform colors = sky/wall/blank)
+    // Text overlays and split images allowed - human review will catch issues
     const isUniform = await isUniformColor(imagePath);
-    // FIX: actually call detectTextOverlay so screenshots/memes are rejected
-    const hasText = await detectTextOverlay(imagePath);
-
+    
     // DEBUG LOGGING
     console.log("Validation check:", {
       faceRatio: faceRatio.toFixed(4),
@@ -123,12 +125,11 @@ async function detectFace(imagePath: string): Promise<boolean> {
       hasFace,
       hasReasonableSkin,
       isUniform,
-      hasText,
-      passed: hasFace && hasReasonableSkin && !isUniform && !hasText
+      passed: hasFace && hasReasonableSkin && !isUniform
     });
-
-    // Block: no face, out-of-range skin ratio, uniform background, or text overlay (screenshot/meme)
-    return hasFace && hasReasonableSkin && !isUniform && !hasText;
+    
+    // Only block: no face detected OR uniform background (sky/wall/object)
+    return hasFace && hasReasonableSkin && !isUniform;
   } catch (error) {
     console.log("Face detection error:", error);
     return true; // Fail open
@@ -188,6 +189,7 @@ async function detectTextOverlay(imagePath: string): Promise<boolean> {
     for (let y = 1; y < height - 1; y++) {
       for (let x = 1; x < width - 1; x++) {
         const idx = y * width + x;
+        const pixel = data[idx];
         
         // Horizontal edge check (sharp change left-right)
         const left = data[idx - 1];
@@ -200,8 +202,8 @@ async function detectTextOverlay(imagePath: string): Promise<boolean> {
         const vDiff = Math.abs(up - down);
         
         // Text typically has very sharp edges (>60 difference in grayscale)
-        if (hDiff > 90) sharpHorizontalEdges++;
-        if (vDiff > 90) sharpVerticalEdges++;
+        if (hDiff > 60) sharpHorizontalEdges++;
+        if (vDiff > 60) sharpVerticalEdges++;
       }
     }
     
@@ -211,6 +213,7 @@ async function detectTextOverlay(imagePath: string): Promise<boolean> {
     
     // Text typically has lots of sharp horizontal edges (thin horizontal text lines)
     // and moderate vertical edges (vertical strokes in letters)
+    // RELAXED: Only catch obvious screenshots/memes, not photo details
     const hasTextPattern = hEdgeRatio > 0.1 && vEdgeRatio > 0.05;
     
     return hasTextPattern;

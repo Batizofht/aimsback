@@ -503,7 +503,7 @@ export const adminListUsers = async (req: Request, res: Response) => {
 
     const where: any = {
       IsVerified: true,
-      aproved: "YES", // Only fully approved users
+      aproved: "YES",
     };
     if (q) {
       where[Op.and] = [
@@ -790,7 +790,7 @@ export const adminBlockReportedUser = async (req: Request, res: Response) => {
 export const adminListPendingPhotos = async (req: Request, res: Response) => {
   try {
     const users = await User.findAll({
-      where: { photoStatus: "pending" },
+      where: { photoStatus: "pending", aproved: "YES" },
       attributes: [
         "id",
         "email",
@@ -848,7 +848,7 @@ export const adminListPendingPhotos = async (req: Request, res: Response) => {
 export const adminListRejectedPhotos = async (req: Request, res: Response) => {
   try {
     const users = await User.findAll({
-      where: { photoStatus: "rejected" },
+      where: { photoStatus: "rejected", aproved: "YES" },
       attributes: [
         "id",
         "email",

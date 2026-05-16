@@ -334,7 +334,7 @@ const isLLMAlive = async (): Promise<boolean> => {
       return false;
     }
 
-    const data = await resp.json();
+    const data = await resp.json() as { choices?: Array<{ message?: { content?: string } }> };
     const raw = data.choices?.[0]?.message?.content?.trim() || "";
     console.log("[Hybrid] LLM health check raw response:", raw);
 
@@ -439,7 +439,7 @@ Rules:
       return null;
     }
 
-    const data = await resp.json();
+    const data = await resp.json() as { choices?: Array<{ message?: { content?: string } }> };
     const raw  = data.choices?.[0]?.message?.content?.trim() || "";
 
     console.log("[Hybrid] LLM RAW RESPONSE:", raw);
@@ -589,7 +589,10 @@ const getMatchReason = async (uText: string, cText: string, sem: number, pref: n
     });
     clearTimeout(tid);
     if (!resp.ok) throw new Error(`LLM ${resp.status}`);
-    const data = await resp.json();
+    interface LLMResponse {
+      choices?: { message?: { content?: string } }[];
+    }
+    const data = (await resp.json()) as LLMResponse;
     return data.choices?.[0]?.message?.content?.trim() || "You both have a lot in common worth discovering.";
   } catch {
     if (combined >= 0.75) return "Deep compatibility — your goals and personality align exceptionally.";

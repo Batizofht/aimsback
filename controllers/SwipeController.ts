@@ -943,6 +943,8 @@ export const getTopPicks = async (req: Request, res: Response) => {
       Orientation,
       country, // Country preference
       city,
+      limit,
+      offset,
     } = req.body;
 
     // Use 'owner' if provided, otherwise fall back to 'user'
@@ -981,7 +983,7 @@ export const getTopPicks = async (req: Request, res: Response) => {
     const swipedUserIds = swipedUsers.map((m) => m.matched_user_id);
 
     // ===== STEP 1: BASE CONDITIONS =====
-    // Only apply gender as mandatory filter
+    // Only apply gender as mandatory filter at DB level
     const baseConditions: any = {
       id: { [Op.and]: [{ [Op.ne]: userId }, { [Op.notIn]: swipedUserIds }] },
       aproved: "YES",
@@ -1003,10 +1005,21 @@ export const getTopPicks = async (req: Request, res: Response) => {
 
     console.log("[TopPicks] Base conditions:", baseConditions);
 
+    const limitNumRaw = Number(limit);
+    const offsetNumRaw = Number(offset);
+    const limitNum = Number.isFinite(limitNumRaw)
+      ? Math.min(Math.max(Math.floor(limitNumRaw), 1), 50)
+      : 50;
+    const offsetNum = Number.isFinite(offsetNumRaw)
+      ? Math.max(Math.floor(offsetNumRaw), 0)
+      : 0;
+
+    const fetchLimit = Math.min(1000, offsetNum + limitNum + 200);
+
     // Fetch ALL users matching gender (we'll prioritize by toppicks and globe later)
     let allUsers = await User.findAll({
       where: baseConditions,
-      limit: 1000,
+      limit: fetchLimit,
     });
 
     console.log("[TopPicks] After gender filter:", allUsers.length);
@@ -1040,19 +1053,27 @@ export const getTopPicks = async (req: Request, res: Response) => {
     const enrichedUsers = allUsers.map((user) => {
       const u: any = user.toJSON();
 
-      // Calculate age
+      // ── AGE: strict match, same rule as gender ──────────────────────────────
+      // computedAge must be a valid number AND within [minAge, maxAge].
+      // If calculateAge returns null/undefined the candidate fails (ageMatch=false).
       u.computedAge = calculateAge(u.years);
       u.ageMatch =
         u.computedAge != null &&
         u.computedAge >= minAge &&
         u.computedAge <= maxAge;
 
-      // Calculate distance
+      // ── DISTANCE: strict match, same rule as gender ─────────────────────────
+      // If a distance limit was requested:
+      //   • candidate must have a computable distance (not Infinity)
+      //   • AND that distance must be ≤ maxDistanceKm
+      //   • Unknown/missing coordinates → distanceMatch = false (never a free pass)
+      // If no distance limit was requested → everyone passes (distanceMatch = true).
       u.computedDistance = computeCandidateDistanceKm(currentUser, u);
       u.distanceMatch =
-        maxDistanceKm != null && u.computedDistance !== Infinity
-          ? u.computedDistance <= maxDistanceKm
-          : null;
+        maxDistanceKm != null
+          ? u.computedDistance !== Infinity &&
+            u.computedDistance <= maxDistanceKm
+          : true; // No distance filter requested → pass
 
       // Country match
       const candCountry = toTrimmedLower(u.country);
@@ -1075,30 +1096,32 @@ export const getTopPicks = async (req: Request, res: Response) => {
     });
 
     // ===== STEP 3: PRIORITIZED FILTERING =====
-    // This creates multiple tiers of matches based on priority
+    // Age AND distance are MANDATORY in every tier — same strictness as gender.
+    // The only axis that relaxes across tiers is location (country/globe).
 
-    // PRIORITY 1: toppicks=true + globe=false + age + country + distance
-    // (Users who opted into top picks but only in their country)
+    // PRIORITY 1: toppicks=true + !globe + age✓ + country✓ + distance✓
     let tier1 = enrichedUsers.filter(
       (u) =>
         u.hasTopPicks &&
         !u.hasGlobe &&
         u.ageMatch &&
         u.countryMatch &&
-        (u.distanceMatch === true || u.distanceMatch === null),
+        u.distanceMatch,
     );
     console.log(
       "[TopPicks Priority 1] toppicks + !globe + age + country + distance:",
       tier1.length,
     );
 
-    // PRIORITY 2: toppicks=true + globe=false + age + country (ignore distance)
+    // PRIORITY 2: toppicks=true + !globe + age✓ + country✓ + distance✓
+    // (not already in tier1 — captures overflow when tier1 is full)
     let tier2 = enrichedUsers.filter(
       (u) =>
         u.hasTopPicks &&
         !u.hasGlobe &&
         u.ageMatch &&
         u.countryMatch &&
+        u.distanceMatch &&
         !tier1.includes(u),
     );
     console.log(
@@ -1106,15 +1129,14 @@ export const getTopPicks = async (req: Request, res: Response) => {
       tier2.length,
     );
 
-    // PRIORITY 3: toppicks=true + globe=true + age + country + distance
-    // (Global users in same country with distance match)
+    // PRIORITY 3: toppicks=true + globe=true + age✓ + country✓ + distance✓
     let tier3 = enrichedUsers.filter(
       (u) =>
         u.hasTopPicks &&
         u.hasGlobe &&
         u.ageMatch &&
         u.countryMatch &&
-        (u.distanceMatch === true || u.distanceMatch === null) &&
+        u.distanceMatch &&
         !tier1.includes(u) &&
         !tier2.includes(u),
     );
@@ -1123,13 +1145,14 @@ export const getTopPicks = async (req: Request, res: Response) => {
       tier3.length,
     );
 
-    // PRIORITY 4: toppicks=true + globe=true + age + country (ignore distance)
+    // PRIORITY 4: toppicks=true + globe=true + age✓ + country✓ + distance✓
     let tier4 = enrichedUsers.filter(
       (u) =>
         u.hasTopPicks &&
         u.hasGlobe &&
         u.ageMatch &&
         u.countryMatch &&
+        u.distanceMatch &&
         !tier1.includes(u) &&
         !tier2.includes(u) &&
         !tier3.includes(u),
@@ -1139,12 +1162,14 @@ export const getTopPicks = async (req: Request, res: Response) => {
       tier4.length,
     );
 
-    // PRIORITY 5: toppicks=true + globe=true + age (ANY LOCATION - worldwide)
+    // PRIORITY 5: toppicks=true + globe=true + age✓ (ANY LOCATION - worldwide)
+    // Distance is still mandatory — age and distance never relax.
     let tier5 = enrichedUsers.filter(
       (u) =>
         u.hasTopPicks &&
         u.hasGlobe &&
         u.ageMatch &&
+        u.distanceMatch &&
         !tier1.includes(u) &&
         !tier2.includes(u) &&
         !tier3.includes(u) &&
@@ -1155,25 +1180,27 @@ export const getTopPicks = async (req: Request, res: Response) => {
       tier5.length,
     );
 
-    // PRIORITY 6: toppicks=true + globe=false (relax age, but still same country only)
+    // PRIORITY 6: toppicks=true + !globe + country✓ (age relaxed, distance still mandatory)
     let tier6 = enrichedUsers.filter(
       (u) =>
         u.hasTopPicks &&
         !u.hasGlobe &&
         u.countryMatch &&
+        u.distanceMatch &&
         !tier1.includes(u) &&
         !tier2.includes(u),
     );
     console.log(
-      "[TopPicks Priority 6] toppicks + !globe + country (relaxed age):",
+      "[TopPicks Priority 6] toppicks + !globe + country (relaxed age, distance strict):",
       tier6.length,
     );
 
-    // PRIORITY 7: toppicks=true + globe=true (relax age and location - show everyone globally)
+    // PRIORITY 7: toppicks=true + globe=true (age relaxed, worldwide, distance still mandatory)
     let tier7 = enrichedUsers.filter(
       (u) =>
         u.hasTopPicks &&
         u.hasGlobe &&
+        u.distanceMatch &&
         !tier1.includes(u) &&
         !tier2.includes(u) &&
         !tier3.includes(u) &&
@@ -1181,7 +1208,7 @@ export const getTopPicks = async (req: Request, res: Response) => {
         !tier5.includes(u),
     );
     console.log(
-      "[TopPicks Priority 7] toppicks + globe (relaxed age, worldwide):",
+      "[TopPicks Priority 7] toppicks + globe (relaxed age, worldwide, distance strict):",
       tier7.length,
     );
 
@@ -1226,35 +1253,37 @@ export const getTopPicks = async (req: Request, res: Response) => {
     console.log("[TopPicks] Total combined picks:", combinedTopPicks.length);
 
     // ===== STEP 6: FORMAT AND RETURN =====
-    const picksData = combinedTopPicks.slice(0, 50).map((pick) => {
-      const data: any = pick;
+    const picksData = combinedTopPicks
+      .slice(offsetNum, offsetNum + limitNum)
+      .map((pick) => {
+        const data: any = pick;
 
-      // Remove sensitive data
-      delete data.password;
-      delete data.OTP;
-      delete data.OTPExpiry;
+        // Remove sensitive data
+        delete data.password;
+        delete data.OTP;
+        delete data.OTPExpiry;
 
-      // Format response
-      return {
-        ...data,
-        age: data.computedAge,
-        distance:
-          data.computedDistance !== Infinity
-            ? Number(data.computedDistance.toFixed(2))
-            : null,
-        status: data.status,
-        score: data._score ? Number(data._score.toFixed(4)) : undefined,
-        // Remove temporary fields
-        computedDistance: undefined,
-        computedAge: undefined,
-        ageMatch: undefined,
-        countryMatch: undefined,
-        distanceMatch: undefined,
-        hasTopPicks: undefined,
-        hasGlobe: undefined,
-        _score: undefined,
-      };
-    });
+        // Format response
+        return {
+          ...data,
+          age: data.computedAge,
+          distance:
+            data.computedDistance !== Infinity
+              ? Number(data.computedDistance.toFixed(2))
+              : null,
+          status: data.status,
+          score: data._score ? Number(data._score.toFixed(4)) : undefined,
+          // Remove temporary fields
+          computedDistance: undefined,
+          computedAge: undefined,
+          ageMatch: undefined,
+          countryMatch: undefined,
+          distanceMatch: undefined,
+          hasTopPicks: undefined,
+          hasGlobe: undefined,
+          _score: undefined,
+        };
+      });
 
     console.log("[TopPicks] Returning:", picksData.length, "picks");
     res.status(200).json(picksData);
@@ -1282,6 +1311,8 @@ export const filteredExplore = async (req: Request, res: Response) => {
       Orientation,
       country, // Country preference
       city,
+      limit,
+      offset,
     } = req.body;
 
     // Use 'owner' if provided, otherwise fall back to 'user'
@@ -1347,10 +1378,21 @@ export const filteredExplore = async (req: Request, res: Response) => {
 
     console.log("[TopPicks] Base conditions:", baseConditions);
 
+    const limitNumRaw = Number(limit);
+    const offsetNumRaw = Number(offset);
+    const limitNum = Number.isFinite(limitNumRaw)
+      ? Math.min(Math.max(Math.floor(limitNumRaw), 1), 50)
+      : 50;
+    const offsetNum = Number.isFinite(offsetNumRaw)
+      ? Math.max(Math.floor(offsetNumRaw), 0)
+      : 0;
+
+    const fetchLimit = Math.min(1000, offsetNum + limitNum + 200);
+
     // Fetch ALL users matching gender (we'll prioritize by toppicks and globe later)
     let allUsers = await User.findAll({
       where: baseConditions,
-      limit: 1000,
+      limit: fetchLimit,
     });
 
     console.log("[TopPicks] After gender filter:", allUsers.length);
@@ -1383,19 +1425,27 @@ export const filteredExplore = async (req: Request, res: Response) => {
     const enrichedUsers = allUsers.map((user) => {
       const u: any = user.toJSON();
 
-      // Calculate age
+      // ── AGE: strict match, same rule as gender ──────────────────────────────
+      // computedAge must be a valid number AND within [minAge, maxAge].
+      // If calculateAge returns null/undefined the candidate fails (ageMatch=false).
       u.computedAge = calculateAge(u.years);
       u.ageMatch =
         u.computedAge != null &&
         u.computedAge >= minAge &&
         u.computedAge <= maxAge;
 
-      // Calculate distance
+      // ── DISTANCE: strict match, same rule as gender ─────────────────────────
+      // If a distance limit was requested:
+      //   • candidate must have a computable distance (not Infinity)
+      //   • AND that distance must be ≤ maxDistanceKm
+      //   • Unknown/missing coordinates → distanceMatch = false (never a free pass)
+      // If no distance limit was requested → everyone passes (distanceMatch = true).
       u.computedDistance = computeCandidateDistanceKm(currentUser, u);
       u.distanceMatch =
-        maxDistanceKm != null && u.computedDistance !== Infinity
-          ? u.computedDistance <= maxDistanceKm
-          : null;
+        maxDistanceKm != null
+          ? u.computedDistance !== Infinity &&
+            u.computedDistance <= maxDistanceKm
+          : true; // No distance filter requested → pass
 
       // Country match
       const candCountry = toTrimmedLower(u.country);
@@ -1418,30 +1468,32 @@ export const filteredExplore = async (req: Request, res: Response) => {
     });
 
     // ===== STEP 3: PRIORITIZED FILTERING =====
-    // This creates multiple tiers of matches based on priority
+    // Age AND distance are now MANDATORY in every tier — same strictness as gender.
+    // The only axis that relaxes across tiers is location (country/globe).
 
-    // PRIORITY 1: toppicks=true + globe=false + age + country + distance
-    // (Users who opted into top picks but only in their country)
+    // PRIORITY 1: toppicks=true + !globe + age✓ + country✓ + distance✓
     let tier1 = enrichedUsers.filter(
       (u) =>
         u.hasTopPicks &&
         !u.hasGlobe &&
         u.ageMatch &&
         u.countryMatch &&
-        (u.distanceMatch === true || u.distanceMatch === null),
+        u.distanceMatch,
     );
     console.log(
       "[TopPicks Priority 1] toppicks + !globe + age + country + distance:",
       tier1.length,
     );
 
-    // PRIORITY 2: toppicks=true + globe=false + age + country (ignore distance)
+    // PRIORITY 2: toppicks=true + !globe + age✓ + country✓
+    // (distance filter not set — distanceMatch is already true for everyone in that case)
     let tier2 = enrichedUsers.filter(
       (u) =>
         u.hasTopPicks &&
         !u.hasGlobe &&
         u.ageMatch &&
         u.countryMatch &&
+        u.distanceMatch &&
         !tier1.includes(u),
     );
     console.log(
@@ -1449,15 +1501,14 @@ export const filteredExplore = async (req: Request, res: Response) => {
       tier2.length,
     );
 
-    // PRIORITY 3: toppicks=true + globe=true + age + country + distance
-    // (Global users in same country with distance match)
+    // PRIORITY 3: toppicks=true + globe=true + age✓ + country✓ + distance✓
     let tier3 = enrichedUsers.filter(
       (u) =>
         u.hasTopPicks &&
         u.hasGlobe &&
         u.ageMatch &&
         u.countryMatch &&
-        (u.distanceMatch === true || u.distanceMatch === null) &&
+        u.distanceMatch &&
         !tier1.includes(u) &&
         !tier2.includes(u),
     );
@@ -1466,13 +1517,14 @@ export const filteredExplore = async (req: Request, res: Response) => {
       tier3.length,
     );
 
-    // PRIORITY 4: toppicks=true + globe=true + age + country (ignore distance)
+    // PRIORITY 4: toppicks=true + globe=true + age✓ + country✓
     let tier4 = enrichedUsers.filter(
       (u) =>
         u.hasTopPicks &&
         u.hasGlobe &&
         u.ageMatch &&
         u.countryMatch &&
+        u.distanceMatch &&
         !tier1.includes(u) &&
         !tier2.includes(u) &&
         !tier3.includes(u),
@@ -1482,12 +1534,14 @@ export const filteredExplore = async (req: Request, res: Response) => {
       tier4.length,
     );
 
-    // PRIORITY 5: toppicks=true + globe=true + age (ANY LOCATION - worldwide)
+    // PRIORITY 5: toppicks=true + globe=true + age✓ (ANY LOCATION - worldwide)
+    // Distance is still mandatory here — age and distance never relax.
     let tier5 = enrichedUsers.filter(
       (u) =>
         u.hasTopPicks &&
         u.hasGlobe &&
         u.ageMatch &&
+        u.distanceMatch &&
         !tier1.includes(u) &&
         !tier2.includes(u) &&
         !tier3.includes(u) &&
@@ -1498,25 +1552,27 @@ export const filteredExplore = async (req: Request, res: Response) => {
       tier5.length,
     );
 
-    // PRIORITY 6: toppicks=true + globe=false (relax age, but still same country only)
+    // PRIORITY 6: toppicks=true + !globe + country✓ (age relaxed, distance still mandatory)
     let tier6 = enrichedUsers.filter(
       (u) =>
         u.hasTopPicks &&
         !u.hasGlobe &&
         u.countryMatch &&
+        u.distanceMatch &&
         !tier1.includes(u) &&
         !tier2.includes(u),
     );
     console.log(
-      "[TopPicks Priority 6] toppicks + !globe + country (relaxed age):",
+      "[TopPicks Priority 6] toppicks + !globe + country (relaxed age, distance strict):",
       tier6.length,
     );
 
-    // PRIORITY 7: toppicks=true + globe=true (relax age and location - show everyone globally)
+    // PRIORITY 7: toppicks=true + globe=true (age relaxed, worldwide, distance still mandatory)
     let tier7 = enrichedUsers.filter(
       (u) =>
         u.hasTopPicks &&
         u.hasGlobe &&
+        u.distanceMatch &&
         !tier1.includes(u) &&
         !tier2.includes(u) &&
         !tier3.includes(u) &&
@@ -1524,7 +1580,7 @@ export const filteredExplore = async (req: Request, res: Response) => {
         !tier5.includes(u),
     );
     console.log(
-      "[TopPicks Priority 7] toppicks + globe (relaxed age, worldwide):",
+      "[TopPicks Priority 7] toppicks + globe (relaxed age, worldwide, distance strict):",
       tier7.length,
     );
 
@@ -1569,35 +1625,37 @@ export const filteredExplore = async (req: Request, res: Response) => {
     console.log("[TopPicks] Total combined picks:", combinedTopPicks.length);
 
     // ===== STEP 6: FORMAT AND RETURN =====
-    const picksData = combinedTopPicks.slice(0, 50).map((pick) => {
-      const data: any = pick;
+    const picksData = combinedTopPicks
+      .slice(offsetNum, offsetNum + limitNum)
+      .map((pick) => {
+        const data: any = pick;
 
-      // Remove sensitive data
-      delete data.password;
-      delete data.OTP;
-      delete data.OTPExpiry;
+        // Remove sensitive data
+        delete data.password;
+        delete data.OTP;
+        delete data.OTPExpiry;
 
-      // Format response
-      return {
-        ...data,
-        age: data.computedAge,
-        distance:
-          data.computedDistance !== Infinity
-            ? Number(data.computedDistance.toFixed(2))
-            : null,
-        status: data.status,
-        score: data._score ? Number(data._score.toFixed(4)) : undefined,
-        // Remove temporary fields
-        computedDistance: undefined,
-        computedAge: undefined,
-        ageMatch: undefined,
-        countryMatch: undefined,
-        distanceMatch: undefined,
-        hasTopPicks: undefined,
-        hasGlobe: undefined,
-        _score: undefined,
-      };
-    });
+        // Format response
+        return {
+          ...data,
+          age: data.computedAge,
+          distance:
+            data.computedDistance !== Infinity
+              ? Number(data.computedDistance.toFixed(2))
+              : null,
+          status: data.status,
+          score: data._score ? Number(data._score.toFixed(4)) : undefined,
+          // Remove temporary fields
+          computedDistance: undefined,
+          computedAge: undefined,
+          ageMatch: undefined,
+          countryMatch: undefined,
+          distanceMatch: undefined,
+          hasTopPicks: undefined,
+          hasGlobe: undefined,
+          _score: undefined,
+        };
+      });
 
     console.log("[TopPicks] Returning:", picksData.length, "picks");
     res.status(200).json(picksData);

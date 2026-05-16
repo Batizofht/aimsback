@@ -10,22 +10,21 @@ if (process.env.NODE_ENV === 'production') {
 // Configure your email transporter here
 // For production, use proper SMTP settings
 const transporter = nodemailer.createTransport({
-  host: "198.177.121.32",
-  port: 465,
-  secure: true,
+  host: "smtp-relay.brevo.com",
+  port: 587,
+  secure: false, // STARTTLS, not SSL
   auth: {
-    user: "non-reply@meintoyou.com",
+    user: "ab7574001@smtp-brevo.com",
     pass: process.env.EMAIL_PASSWORD,
   },
   tls: {
     rejectUnauthorized: true,
-    servername: "mail.spacemail.com",
   },
 });
 export const sendOTPEmail = async (email: string, otp: string) => {
   try {
     const mailOptions = {
-      from: "MeIntoYou <non-reply@meintoyou.com>",
+      from: "Meintoyou Account Team <noreply@meintoyou.com>",
       to: email,
       subject: "MeIntoYou - Verification Code",
       html: `
@@ -121,7 +120,7 @@ export const sendOTPEmail = async (email: string, otp: string) => {
 export const sendWarningEmail = async (email: string, strikes: number, reason: string) => {
   try {
     const mailOptions = {
-      from: "MeIntoYou <non-reply@meintoyou.com>",
+      from: "Meintoyou Account Team <noreply@meintoyou.com>",
       to: email,
       subject: "MeIntoYou - Account Warning",
       html: `
@@ -222,7 +221,7 @@ export const sendWarningEmail = async (email: string, strikes: number, reason: s
 export const sendBlockedEmail = async (email: string, reason: string) => {
   try {
     const mailOptions = {
-      from: "MeIntoYou <non-reply@meintoyou.com>",
+      from: "Meintoyou Account Team <noreply@meintoyou.com>",
       to: email,
       subject: "MeIntoYou - Account Blocked",
       html: `
@@ -325,7 +324,7 @@ export const sendBlockedEmail = async (email: string, reason: string) => {
 export const sendVerificationApprovedEmail = async (email: string) => {
   try {
     const mailOptions = {
-      from: "MeIntoYou <non-reply@meintoyou.com>",
+      from: "Meintoyou Account Team <noreply@meintoyou.com>",
       to: email,
       subject: "MeIntoYou - Identity Verified",
       html: `
@@ -402,7 +401,7 @@ export const sendVerificationApprovedEmail = async (email: string) => {
 export const sendVerificationRejectedEmail = async (email: string, reason: string) => {
   try {
     const mailOptions = {
-      from: "MeIntoYou <non-reply@meintoyou.com>",
+      from: "Meintoyou Account Team <noreply@meintoyou.com>",
       to: email,
       subject: "MeIntoYou - Identity Verification Rejected",
       html: `
@@ -488,7 +487,7 @@ export const sendVerificationRejectedEmail = async (email: string, reason: strin
 export const sendUnblockedEmail = async (email: string) => {
   try {
     const mailOptions = {
-      from: "MeIntoYou <non-reply@meintoyou.com>",
+      from: "Meintoyou Account Team <noreply@meintoyou.com>",
       to: email,
       subject: "MeIntoYou - Account Unblocked",
       html: `
@@ -565,7 +564,7 @@ export const sendUnblockedEmail = async (email: string) => {
 export const sendPasswordResetEmail = async (email: string, otp: string) => {
   try {
     const mailOptions = {
-      from: "MeIntoYou <non-reply@meintoyou.com>",
+      from: "Meintoyou Account Team <noreply@meintoyou.com>",
       to: email,
       subject: "MeIntoYou - Password Reset",
       html: `

@@ -9,23 +9,22 @@ if (process.env.NODE_ENV === 'production') {
 
 // Configure your email transporter here
 const transporter = nodemailer.createTransport({
-  host: "198.177.121.32",
-  port: 465,
-  secure: true,
+  host: "smtp-relay.brevo.com",
+  port: 587,
+  secure: false, // STARTTLS, not SSL
   auth: {
-    user: "non-reply@meintoyou.com",
+    user: "ab7574001@smtp-brevo.com",
     pass: process.env.EMAIL_PASSWORD,
   },
   tls: {
     rejectUnauthorized: true,
-    servername: "mail.spacemail.com",
   },
 });
 
 export const sendCampaignEmail = async (email: string, subject: string, message: string) => {
   try {
     const mailOptions = {
-      from: "MeIntoYou <non-reply@meintoyou.com>",
+      from: "Meintoyou Account Team <noreply@meintoyou.com>",
       to: email,
       subject: `MeIntoYou - ${subject}`,
       html: `
