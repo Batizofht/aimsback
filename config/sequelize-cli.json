@@ -28,7 +28,7 @@
     }
   },
   "production": {
-    "username": "postgres.jbdmaoohlspxdlpntxhb",
+    "username": "postgres",
     "password": "dfvadfvcsdfvsdfvsdfvsdfvsdfvsdfv",
     "database": "postgres",
     "host": "db.rcjppgpnfjgobbdcptst.supabase.co",
