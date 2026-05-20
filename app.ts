@@ -4,6 +4,7 @@ import express, { Express } from 'express';
 import UserRoute from './routes/UserRoute';
 import tokenRoute from './routes/tokenRoute';
 import apiRoute from './routes/apiRoute';
+import validationRoute from './routes/validationRoute';
 import path from 'path';
 import fs from 'fs';
 import { touchLastActive } from './middlewares/touchLastActive';
@@ -38,6 +39,9 @@ app.use("/vava", UserRoute);
 
 // New clean API routes
 app.use("/api", apiRoute);
+
+// Validation routes (email availability, etc.)
+app.use("/api/validate", validationRoute);
 
 // SEO routes - dynamic sitemap and robots.txt
 app.get('/sitemap.xml', generateSitemap);

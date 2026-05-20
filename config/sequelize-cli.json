@@ -29,9 +29,9 @@
   },
   "production": {
     "username": "postgres.jbdmaoohlspxdlpntxhb",
-    "password": "EWFQFWREFGWEFGWRFGWERRWEFGWREFW",
+    "password": "dfvadfvcsdfvsdfvsdfvsdfvsdfvsdfv",
     "database": "postgres",
-    "host": "aws-1-us-east-2.pooler.supabase.com",
+    "host": "db.rcjppgpnfjgobbdcptst.supabase.co",
     "port": 6543,
     "dialect": "postgres",
     "dialectOptions": {

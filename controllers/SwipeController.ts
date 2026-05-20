@@ -1200,7 +1200,7 @@ export const getTopPicks = async (req: Request, res: Response) => {
       (u) =>
         u.hasTopPicks &&
         u.hasGlobe &&
-        u.distanceMatch &&
+       
         !tier1.includes(u) &&
         !tier2.includes(u) &&
         !tier3.includes(u) &&
@@ -1572,7 +1572,7 @@ export const filteredExplore = async (req: Request, res: Response) => {
       (u) =>
         u.hasTopPicks &&
         u.hasGlobe &&
-        u.distanceMatch &&
+ 
         !tier1.includes(u) &&
         !tier2.includes(u) &&
         !tier3.includes(u) &&
