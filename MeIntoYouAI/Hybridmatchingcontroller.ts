@@ -392,17 +392,18 @@ Input: "I want a girl in Kigali, early 20s, who loves music"
 Output: {"ageMin":20,"ageMax":24,"city":"Kigali","maxDistanceKm":null,"minDistanceKm":null,"relationshipType":null,"gender":"WOMAN","dealbreakers":[],"relevantFields":["gender","age","location","interest"]}
 
 Input: "man, 19 years, lives in kigali rwanda, loves mathematics, 148cm, not less than 10km away, live together"
-Output: {"ageMin":19,"ageMax":19,"city":"Kigali","maxDistanceKm":null,"minDistanceKm":10,"relationshipType":"serious","gender":"MAN","dealbreakers":[],"relevantFields":["gender","age","location","height","interest","relationshipStatus"]}
+Output: {"ageMin":19,"ageMax":19,"city":"Kigali","maxDistanceKm":null,"minDistanceKm":10,"relationshipType":"Long-term Partner","gender":"MAN","dealbreakers":[],"relevantFields":["gender","age","location","height","interest","relationshipStatus"]}
 
 Input: "someone fun, no smokers, under 30"
-Output: {"ageMin":null,"ageMax":30,"city":null,"maxDistanceKm":null,"minDistanceKm":null,"relationshipType":"casual","gender":null,"dealbreakers":["smoking"],"relevantFields":["age","smoking"]}
+Output: {"ageMin":null,"ageMax":30,"city":null,"maxDistanceKm":null,"minDistanceKm":null,"relationshipType":"Casual Dating","gender":null,"dealbreakers":["smoking"],"relevantFields":["age","smoking"]}
 
 Rules:
 - ageMin/ageMax: exact numbers only. "19 years" = 19,19. "early 20s" = 20,24. "mid 20s" = 24,27. "late 20s" = 27,29. "university age" = 18,24. "young" = 18,28. "not too old" = null,35. "19+" = 19,null. "under 25" = null,25.
 - city: exact city name if mentioned.
 - maxDistanceKm: only if they say "within X km" or "close by" (use 20) or "nearby" (use 20).
 - minDistanceKm: only if they say "not less than X" or "at least X away" or "far" (use 50).
-- relationshipType: "serious" for long-term/live together/marriage. "casual" for fun/short-term. "friends" for platonic.
+- relationshipType: MUST be one of these exact values: "Long-term Partner", "Long-term Open to Short-term", "Marriage", "Casual Dating", "Short-term", "Friends", "Chat", "Figuring It Out", or null.
+  Mapping: "serious"/"long-term"/"live together"/"committed" = "Long-term Partner". "marriage"/"marry"/"wife"/"husband" = "Marriage". "long-term but open" = "Long-term Open to Short-term". "casual"/"fun"/"hookup"/"no strings" = "Casual Dating". "short-term"/"temporary"/"fling" = "Short-term". "friends"/"platonic"/"buddy" = "Friends". "chat"/"talk"/"conversation" = "Chat". "not sure"/"figuring out"/"exploring" = "Figuring It Out". If unclear = null.
 - gender: "MAN" or "WOMAN" only if explicitly stated.
 - IF HE SAY 6 INCH OR INCHES NOT IN CM PLEASE TRANSFORM TO THE cm also same to us, IF HE SAY MILES CHANGE THAT TO km
 - heightCm: convert ANY height mention to centimeters. Use these conversions: 1 foot = 30.48cm, 1 inch = 2.54cm, 1 meter = 100cm.
@@ -543,6 +544,30 @@ const calcPrefScore = (userPrefs: ExtractedPrefs, candidate: any, currentUser: a
     const cc  = (candidate.city || "").toLowerCase();
     if (cc.includes(loc) || loc.includes(cc)) {
       score += 0.10;
+    }
+  }
+
+  // Relationship type soft scoring
+  if (userPrefs.relationshipType) {
+    checks++;
+    const candFors = (candidate.fors || "").toLowerCase();
+    const prefFors = userPrefs.relationshipType.toLowerCase();
+    if (candFors === prefFors) {
+      score += 0.12;
+    } else {
+      // Compatible groupings: serious-adjacent and casual-adjacent
+      const seriousGroup = ["long-term partner", "long-term open to short-term", "marriage"];
+      const casualGroup  = ["casual dating", "short-term", "chat"];
+      const prefIsSer = seriousGroup.includes(prefFors);
+      const candIsSer = seriousGroup.includes(candFors);
+      const prefIsCas = casualGroup.includes(prefFors);
+      const candIsCas = casualGroup.includes(candFors);
+      if ((prefIsSer && candIsSer) || (prefIsCas && candIsCas)) {
+        score += 0.06; // same family, not exact
+      } else if ((prefIsSer && candIsCas) || (prefIsCas && candIsSer)) {
+        score -= 0.15; // opposite intent
+      }
+      // "Friends" and "Figuring It Out" are neutral — no bonus or penalty
     }
   }
 
@@ -867,6 +892,14 @@ export const getHybridPotentialMatches = async (req: Request, res: Response) => 
     const reqCity    = promptCity || toTrimmedLower(city) || toTrimmedLower(cu.city);
     const reqOrient  = toTrimmedLower(Orientation);
     const reqFors    = toTrimmedLower(fors);
+
+    // Relationship type: prompt > app fors setting
+    // If LLM extracted a relationshipType, inject it into userPrefs for scoring
+    // The reqFors (from app settings) is used in tier2 traditional filter
+    if (userPrefs && !userPrefs.relationshipType && reqFors && reqFors !== "null" && reqFors !== "all") {
+      userPrefs.relationshipType = fors; // use original case from app
+      console.log(`[Hybrid] RelationshipType from app settings: "${fors}"`);
+    }
 
     const allCandidates = await User.findAll({
       where: {

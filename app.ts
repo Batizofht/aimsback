@@ -5,6 +5,7 @@ import UserRoute from './routes/UserRoute';
 import tokenRoute from './routes/tokenRoute';
 import apiRoute from './routes/apiRoute';
 import validationRoute from './routes/validationRoute';
+import webRoute from './routes/WebRoute';
 import path from 'path';
 import fs from 'fs';
 import { touchLastActive } from './middlewares/touchLastActive';
@@ -42,6 +43,9 @@ app.use("/api", apiRoute);
 
 // Validation routes (email availability, etc.)
 app.use("/api/validate", validationRoute);
+
+// Web dashboard routes
+app.use("/api/web", webRoute);
 
 // SEO routes - dynamic sitemap and robots.txt
 app.get('/sitemap.xml', generateSitemap);

@@ -270,7 +270,7 @@ const User = meintoyouapp.define<UserInt, UserInterface>(
     globe: {
       type: DataTypes.STRING(10),
       allowNull: true,
-      defaultValue: "false",
+      defaultValue: "true",
     },
     toppicks: {
       type: DataTypes.STRING(10),

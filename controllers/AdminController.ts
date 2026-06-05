@@ -352,7 +352,7 @@ export const adminUserGrowth = async (req: Request, res: Response) => {
 
     const reportedUsersData = (await User.sequelize!.query(
       `
-      SELECT ${reportsSelectGroupBy} as period, COUNT(*) as count
+      SELECT ${reportsSelectGroupBy} as period, COUNT(DISTINCT reported_user_id) as count
       FROM reports
       WHERE "createdAt" >= :startDate
       GROUP BY ${reportsGroupBy}
@@ -364,13 +364,14 @@ export const adminUserGrowth = async (req: Request, res: Response) => {
       },
     )) as any[];
 
-    // ✅ FIXED: replaced "User"."createdAt" with u."createdAt" via rawGroupBy
+    // Count users who got mutual matches, grouped by match creation date
     const matchedUsersData = (await User.sequelize!.query(
       `
-      SELECT ${rawGroupBy} as period, COUNT(DISTINCT u.id) as count
+      SELECT DATE_TRUNC('${period}', m."createdAt") as period,
+             COUNT(DISTINCT u.id) as count
       FROM users u
       INNER JOIN matches m ON u.id = m.user_id
-      WHERE u."createdAt" >= :startDate
+      WHERE m."createdAt" >= :startDate
         AND u."IsVerified" = true
         AND u."aproved" = 'YES'
         AND m.status = 'like'
@@ -380,7 +381,7 @@ export const adminUserGrowth = async (req: Request, res: Response) => {
             AND m2.matched_user_id = m.user_id
             AND m2.status = 'like'
         )
-      GROUP BY ${rawGroupBy}
+      GROUP BY DATE_TRUNC('${period}', m."createdAt")
       ORDER BY period
     `,
       {
@@ -389,25 +390,33 @@ export const adminUserGrowth = async (req: Request, res: Response) => {
       },
     )) as any[];
 
-    const chartData: any[] = [];
-    const allPeriods = new Set<string>();
+    const toPeriodKey = (v: any) =>
+      new Date(v).toISOString();
 
-    newUsersData.forEach((item: any) => allPeriods.add(item.period));
-    reportedUsersData.forEach((item: any) => allPeriods.add(item.period));
-    matchedUsersData.forEach((item: any) => allPeriods.add(item.period));
+    const newUsersByPeriod = Object.fromEntries(
+      newUsersData.map((item: any) => [toPeriodKey(item.period), Number(item.count)]),
+    );
+    const reportedByPeriod = Object.fromEntries(
+      reportedUsersData.map((item: any) => [toPeriodKey(item.period), Number(item.count)]),
+    );
+    const matchedByPeriod = Object.fromEntries(
+      matchedUsersData.map((item: any) => [toPeriodKey(item.period), Number(item.count)]),
+    );
 
-    allPeriods.forEach((period: string) => {
-      const newUsers = newUsersData.find((item: any) => item.period === period)?.count || 0;
-      const reportedUsers = reportedUsersData.find((item: any) => item.period === period)?.count || 0;
-      const matchedUsers = matchedUsersData.find((item: any) => item.period === period)?.count || 0;
+    const allPeriodKeys = [
+      ...new Set([
+        ...Object.keys(newUsersByPeriod),
+        ...Object.keys(reportedByPeriod),
+        ...Object.keys(matchedByPeriod),
+      ]),
+    ];
 
-      chartData.push({
-        date: period,
-        newUsers: Number(newUsers),
-        reportedUsers: Number(reportedUsers),
-        matchedUsers: Number(matchedUsers),
-      });
-    });
+    const chartData = allPeriodKeys.map((period) => ({
+      date: period,
+      newUsers: newUsersByPeriod[period] || 0,
+      reportedUsers: reportedByPeriod[period] || 0,
+      matchedUsers: matchedByPeriod[period] || 0,
+    }));
 
     chartData.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 

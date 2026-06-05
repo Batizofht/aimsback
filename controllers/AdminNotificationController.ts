@@ -263,6 +263,24 @@ export const sendCampaignNow = async (req: Request, res: Response) => {
   }
 };
 
+// Strip HTML tags to get plain text (for push notifications)
+const stripHtml = (html: string): string => {
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<\/li>/gi, '\n')
+    .replace(/<li>/gi, '• ')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+};
+
 // Background function to send notifications
 const sendCampaignNotifications = async (campaignId: number, senderId?: number) => {
   const campaign: any = await NotificationCampaign.findByPk(campaignId);
@@ -296,7 +314,7 @@ const sendCampaignNotifications = async (campaignId: number, senderId?: number) 
               user_id: user.id,
               sender_id: senderId || user.id,
               title: campaign.title,
-              message: campaign.message,
+              message: stripHtml(campaign.message),
               status: "unread",
             } as any);
 
@@ -305,7 +323,7 @@ const sendCampaignNotifications = async (campaignId: number, senderId?: number) 
               const pushResult = await sendPushNotification(
                 user.id,
                 campaign.title,
-                campaign.message,
+                stripHtml(campaign.message),
                 { type: 'campaign', campaignId: campaign.id }
               );
               pushOk = Boolean(pushResult.success);
