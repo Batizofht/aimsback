@@ -1,25 +1,35 @@
 import { Model, DataTypes } from 'sequelize'
-import meintoyouapp from '../config/config'
+import db from '../config/config'
 
 interface ContactMessageInterface {
   id?: number
   name: string
   email: string
-  message: string
+  subject: string
+  body: string
+  isRead: boolean
+  replied: boolean
+  replyMessage?: string
+  repliedAt?: Date
   createdAt?: Date
   updatedAt?: Date
 }
 
-class ContactMessageInt extends Model<ContactMessageInterface> implements ContactMessageInterface {
+class ContactMessageModel extends Model<ContactMessageInterface> implements ContactMessageInterface {
   id!: number
   name!: string
   email!: string
-  message!: string
+  subject!: string
+  body!: string
+  isRead!: boolean
+  replied!: boolean
+  replyMessage?: string
+  repliedAt?: Date
   createdAt?: Date
   updatedAt?: Date
 }
 
-const ContactMessage = meintoyouapp.define<ContactMessageInt>(
+const ContactMessage = db.define<ContactMessageModel>(
   'ContactMessage',
   {
     id: {
@@ -28,16 +38,36 @@ const ContactMessage = meintoyouapp.define<ContactMessageInt>(
       autoIncrement: true,
     },
     name: {
-      type: DataTypes.STRING(120),
+      type: DataTypes.STRING(150),
       allowNull: false,
     },
     email: {
-      type: DataTypes.STRING(200),
+      type: DataTypes.STRING(250),
       allowNull: false,
     },
-    message: {
-      type: DataTypes.TEXT,
+    subject: {
+      type: DataTypes.STRING(255),
       allowNull: false,
+    },
+    body: {
+      type: DataTypes.TEXT('long'),
+      allowNull: false,
+    },
+    isRead: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+    },
+    replied: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+    },
+    replyMessage: {
+      type: DataTypes.TEXT('long'),
+      allowNull: true,
+    },
+    repliedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
     },
   },
   {

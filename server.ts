@@ -1,147 +1,31 @@
 import 'dotenv/config';
 import app from "./app";
 import http from "http";
-import meintoyouapp from "./config/config";
-import { defineAssociations } from "./models/associations";
-// Import all models to ensure they are registered
+import db from "./config/config";
 import "./models/index";
-import { ContactMessage, Notification, User } from "./models/index";
-import { seedAdminIfNeeded } from "./utils/seedAdmin";
-import { setupPhotoReviewReminders } from "./cron/photoReviewReminders";
-import { Op } from "sequelize";
+import { runSeed } from "./seed";
 
 const server = http.createServer(app);
 const shouldRunBootMigrations = process.env.RUN_DB_BOOT_MIGRATIONS === 'true';
 
-// Cleanup function to mark inactive users as offline
-const cleanupInactiveUsers = async () => {
+db.authenticate().then(async () => {
+  console.log("Database connected successfully");
+
   try {
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000); // 5 minutes ago
-    
-    const [affectedRows] = await User.update(
-      { status: 'Offline' },
-      {
-        where: {
-          status: 'Active',
-          lastActiveAt: {
-            [Op.lt]: fiveMinutesAgo
-          }
-        }
-      }
-    );
-    
-    if (affectedRows > 0) {
-      console.log(`Marked ${affectedRows} inactive users as Offline`);
+    if (shouldRunBootMigrations) {
+      await db.sync({ alter: true });
+      await runSeed();
     }
+    console.log("Database models synchronized successfully");
   } catch (error) {
-    console.error('Error in cleanupInactiveUsers:', error);
+    console.error("Database sync error:", error);
   }
-};
-
-/*=========================================== PROCESS MANAGEMENT CENTER NOT ROUTE MANAGEMENT CENTER   ======================================== */
-meintoyouapp.authenticate().then(async () => {
-    console.log("Database connected successfully");
-    
-    // Define model associations first
-    defineAssociations();
-    
-    // Step 1: Sync all tables first (creates them if they don't exist)
-    try {
-        if (shouldRunBootMigrations) {
-            await meintoyouapp.sync({ force: false, alter: true });
-        } else {
-            console.log("Skipping boot-time sync (RUN_DB_BOOT_MIGRATIONS is not true)");
-        }
-        
-        console.log("Database models synchronized successfully");
-    } catch (syncError) {
-        console.error("Database sync error:", syncError);
-    }
-    
-    // Step 2: Now run ALTER queries to add columns (tables exist now)
-    try {
-        if (shouldRunBootMigrations) {
-            await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS strikes INTEGER DEFAULT 0;');
-            await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS height_cm INTEGER NULL;');
-            await meintoyouapp.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS \"hasKids\" BOOLEAN NULL;");
-            await meintoyouapp.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS \"wantsKids\" BOOLEAN NULL;");
-            await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS relationshipStatus VARCHAR(50) NULL;');
-            await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS smoking VARCHAR(30) NULL;');
-            await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS drinking VARCHAR(30) NULL;');
-            await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS exercise VARCHAR(30) NULL;');
-            await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS occupation VARCHAR(120) NULL;');
-            await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS industry VARCHAR(120) NULL;');
-            await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS languages TEXT NULL;');
-            await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS religion VARCHAR(120) NULL;');
-            await meintoyouapp.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS \"showReligion\" BOOLEAN DEFAULT TRUE;");
-            await meintoyouapp.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS \"pets_dogs\" BOOLEAN NULL;");
-            await meintoyouapp.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS \"pets_cats\" BOOLEAN NULL;");
-            await meintoyouapp.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS \"pets_other\" BOOLEAN NULL;");
-            await meintoyouapp.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS loveLanguages TEXT NULL;');
-            console.log("User columns ensured");
-        } else {
-            console.log("Skipping boot-time ALTER TABLE statements (RUN_DB_BOOT_MIGRATIONS is not true)");
-        }
-    } catch (alterError) {
-        console.error("Error adding columns:", alterError);
-    }
-    
-    // Step 3: Sync ContactMessage and Notification with alter
-    try {
-        if (shouldRunBootMigrations) {
-            await ContactMessage.sync({ alter: true });
-            await Notification.sync({ alter: true });
-        }
-        await seedAdminIfNeeded();
-        
-        // Initialize default RBAC roles
-        try {
-          const { initializeRoles } = await import("./controllers/RBACController");
-          await initializeRoles();
-        } catch (roleError) {
-          console.error("[RBAC] Error initializing roles:", roleError);
-        }
-        
-        // Mark all users as offline on server start
-        await User.update({ status: 'Offline' }, { where: {} });
-        console.log("All users marked as Offline on server start");
-        
-        // Start cleanup job for inactive users
-        setInterval(cleanupInactiveUsers, 60000); // Run every minute
-        console.log("User status cleanup job started");
-
-        // Start photo review reminder cron job
-        setupPhotoReviewReminders();
-    } catch (error: unknown) {
-        const err = error as Error;
-        console.error("Database sync error:", err.message);
-        // If sync fails, try with alter to update existing tables
-        if (shouldRunBootMigrations) {
-            try {
-                await meintoyouapp.sync({ alter: true });
-                console.log("Database models updated successfully");
-                await seedAdminIfNeeded();
-            } catch (syncError: unknown) {
-                const syncErr = syncError as Error;
-                console.error("Database update error:", syncErr.message);
-                // Mark all users as offline even on sync error
-                try {
-                    await User.update({ status: 'Offline' }, { where: {} });
-                    console.log("All users marked as offline after sync error");
-                } catch (userError) {
-                    console.error("Error marking users offline:", userError);
-                }
-            }
-        }
-    }
-}).catch((error: unknown) => {
-    const err = error as Error;
-    console.error("Database connection error:", err.message);
 });
 
-const PORT = process.env.PORT || 4001;
+const PORT = process.env.PORT || 3000;
 
 server.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
 
+export default server;

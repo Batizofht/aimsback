@@ -2,660 +2,215 @@ import nodemailer from "nodemailer";
 import dns from "dns";
 dns.setDefaultResultOrder("ipv4first");
 
-// Force Google DNS if environment DNS fails
-if (process.env.NODE_ENV === 'production') {
-  dns.setServers(['8.8.8.8', '8.8.4.4']);
+if (process.env.NODE_ENV === "production") {
+  dns.setServers(["8.8.8.8", "8.8.4.4"]);
 }
 
-// Configure your email transporter here
-// For production, use proper SMTP settings
 const transporter = nodemailer.createTransport({
   host: "smtp-relay.brevo.com",
   port: 587,
-  secure: false, // STARTTLS, not SSL
+  secure: false,
   auth: {
     user: "ab7574001@smtp-brevo.com",
     pass: process.env.EMAIL_PASSWORD,
   },
-  tls: {
-    rejectUnauthorized: true,
-  },
+  tls: { rejectUnauthorized: true },
 });
-export const sendOTPEmail = async (email: string, otp: string) => {
-  try {
-    const mailOptions = {
-      from: "Meintoyou Account Team <noreply@meintoyou.com>",
-      to: email,
-      subject: "MeIntoYou - Verification Code",
-      html: `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>MeIntoYou Verification</title>
-        </head>
-        <body style="margin: 0; padding: 0; background-color: #f8f6fa; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-            <tr>
-              <td align="center" style="padding: 40px 20px;">
-                <table role="presentation" width="100%" max-width="480" cellpadding="0" cellspacing="0" border="0" style="max-width: 480px; background-color: #ffffff; border-radius: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);">
-                  <!-- Header -->
-                  <tr>
-                    <td style="padding: 48px 32px 32px; text-align: center; border-bottom: 1px solid #f0e6f5;">
-                      <div style="font-size: 28px; font-weight: 700; color: #800080; letter-spacing: -0.5px;">MeIntoYou</div>
-                      <div style="font-size: 13px; color: #9b59b6; margin-top: 6px; font-weight: 500;">Verification Code</div>
-                    </td>
-                  </tr>
-                  
-                  <!-- Content -->
-                  <tr>
-                    <td style="padding: 40px 32px;">
-                      <p style="margin: 0 0 24px; font-size: 16px; color: #333333; line-height: 1.6;">
-                        Here is your verification code to continue:
-                      </p>
-                      
-                      <div style="text-align: center; margin: 32px 0;">
-                        <div style="display: inline-block; background-color: #faf5fc; border: 2px solid #800080; border-radius: 12px; padding: 24px 40px;">
-                          <span style="font-size: 36px; font-weight: 700; color: #800080; letter-spacing: 8px; font-family: 'Courier New', monospace;">${otp}</span>
-                        </div>
-                      </div>
-                      
-                      <p style="margin: 24px 0 0; font-size: 14px; color: #666666; line-height: 1.5; text-align: center;">
-                        This code expires in <strong style="color: #800080;">10 minutes</strong>.
-                      </p>
-                      
-                      <p style="margin: 20px 0 0; font-size: 13px; color: #888888; line-height: 1.5; text-align: center;">
-                        If you didn't request this code, you can safely ignore this email.
-                      </p>
-                    </td>
-                  </tr>
-                  
-                  <!-- Footer -->
-                  <tr>
-                    <td style="padding: 24px 32px 32px; background-color: #faf8fb; border-top: 1px solid #f0e6f5; border-radius: 0 0 16px 16px;">
-                      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-                        <tr>
-                          <td style="text-align: center; padding-bottom: 16px;">
-                            <a href="https://meintoyou.com/about" style="color: #800080; text-decoration: none; font-size: 13px; font-weight: 500; margin: 0 12px;">About</a>
-                            <a href="https://meintoyou.com/contact" style="color: #800080; text-decoration: none; font-size: 13px; font-weight: 500; margin: 0 12px;">Contact</a>
-                            <a href="https://meintoyou.com/privacy" style="color: #800080; text-decoration: none; font-size: 13px; font-weight: 500; margin: 0 12px;">Privacy</a>
-                          </td>
-                        </tr>
-                        <tr>
-                          <td style="text-align: center;">
-                            <p style="margin: 0; font-size: 12px; color: #999999; line-height: 1.5;">
-                              © ${new Date().getFullYear()} MeIntoYou. All rights reserved.<br>
-                              <span style="color: #bbbbbb;">This is an automated message, please do not reply.</span>
-                            </p>
-                          </td>
-                        </tr>
-                      </table>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-        </body>
-        </html>
-      `,
-    };
 
-    const info = await transporter.sendMail(mailOptions);
-    console.log("Email sent successfully:", info.messageId);
-    return true;
-  } catch (error: any) {
-    console.error("Email sending error:", {
-      message: error.message,
-      code: error.code,
-      command: error.command,
-      response: error.response,
-      responseCode: error.responseCode,
+function wrapHtml(bodyHtml: string) {
+  return `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>AIMS Capital</title></head>
+<body style="margin:0;padding:0;background-color:#f0f5fa;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+    <tr>
+      <td align="center" style="padding:40px 20px;">
+        <table role="presentation" width="100%" max-width="520" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;background-color:#ffffff;border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,0.06);">
+          <tr>
+            <td style="padding:40px 32px 24px;text-align:center;border-bottom:1px solid #e8edf2;">
+              <div style="font-size:22px;font-weight:800;color:#0F2B4A;letter-spacing:-0.5px;">AIMS CAPITAL</div>
+              <div style="font-size:11px;color:#5a7a9a;margin-top:4px;font-weight:500;letter-spacing:1px;">ATTORNEYS · ARBITRATORS · ADVISORS</div>
+            </td>
+          </tr>
+          <tr><td style="padding:32px;">${bodyHtml}</td></tr>
+          <tr>
+            <td style="padding:24px 32px 32px;background-color:#f7fafc;border-top:1px solid #e8edf2;border-radius:0 0 16px 16px;text-align:center;">
+              <p style="margin:0;font-size:12px;color:#8899aa;line-height:1.6;">
+                AIMS Capital — International Law & Investment Advisory<br>
+                <span style="color:#aabbcc;">This is an automated message, please do not reply.</span>
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`
+}
+
+export async function sendMembershipApprovedEmail(email: string, name: string) {
+  try {
+    await transporter.sendMail({
+      from: "AIMS Capital <noreply@meintoyou.com>",
+      to: email,
+      subject: "AIMS Capital — Membership Approved",
+      html: wrapHtml(`
+        <p style="margin:0 0 20px;font-size:16px;color:#1a1a1a;line-height:1.6;">Dear ${name},</p>
+        <p style="margin:0 0 20px;font-size:15px;color:#444;line-height:1.6;">Your AIMS Capital membership has been <strong style="color:#0F2B4A;">approved</strong>.</p>
+        <div style="text-align:center;margin:32px 0;">
+          <div style="display:inline-block;background:#0F2B4A;color:#fff;padding:14px 36px;border-radius:10px;font-size:15px;font-weight:700;letter-spacing:1px;">APPROVED</div>
+        </div>
+        <p style="margin:0 0 8px;font-size:15px;color:#444;line-height:1.6;">You can now sign in and access all member features:</p>
+        <ul style="margin:0 0 24px;padding-left:20px;font-size:14px;color:#555;line-height:1.8;">
+          <li>Book consultations and appointments</li>
+          <li>Request legal and advisory services</li>
+          <li>Message your dedicated advisors</li>
+          <li>Track your service requests</li>
+        </ul>
+        <div style="text-align:center;margin:24px 0;">
+          <a href="https://aimscapital.com/membership" style="display:inline-block;background:#0F2B4A;color:#fff;text-decoration:none;padding:14px 32px;border-radius:10px;font-size:14px;font-weight:600;">Sign In to Your Account</a>
+        </div>
+      `),
     });
+    return true;
+  } catch (e: any) {
+    console.error("Email error (approved):", e.message);
     return false;
   }
-};
+}
 
-export const sendWarningEmail = async (email: string, strikes: number, reason: string) => {
+export async function sendMembershipRejectedEmail(email: string, name: string, reason: string) {
   try {
-    const mailOptions = {
-      from: "Meintoyou Account Team <noreply@meintoyou.com>",
+    await transporter.sendMail({
+      from: "AIMS Capital <noreply@meintoyou.com>",
       to: email,
-      subject: "MeIntoYou - Account Warning",
-      html: `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>MeIntoYou Account Warning</title>
-        </head>
-        <body style="margin: 0; padding: 0; background-color: #f8f6fa; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-            <tr>
-              <td align="center" style="padding: 40px 20px;">
-                <table role="presentation" width="100%" max-width="480" cellpadding="0" cellspacing="0" border="0" style="max-width: 480px; background-color: #ffffff; border-radius: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);">
-                  <!-- Header -->
-                  <tr>
-                    <td style="padding: 48px 32px 32px; text-align: center; border-bottom: 1px solid #f0e6f5;">
-                      <div style="font-size: 28px; font-weight: 700; color: #800080; letter-spacing: -0.5px;">MeIntoYou</div>
-                      <div style="font-size: 13px; color: #c0392b; margin-top: 6px; font-weight: 600;">⚠ Account Warning</div>
-                    </td>
-                  </tr>
-                  
-                  <!-- Content -->
-                  <tr>
-                    <td style="padding: 40px 32px;">
-                      <p style="margin: 0 0 20px; font-size: 16px; color: #333333; line-height: 1.6;">
-                        We have received a report about activity on your account that violates our community guidelines.
-                      </p>
-                      
-                      <div style="background-color: #fdf6f3; border-left: 4px solid #e67e22; padding: 16px 20px; margin: 24px 0; border-radius: 0 8px 8px 0;">
-                        <p style="margin: 0 0 8px; font-size: 13px; color: #888888; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">Reason</p>
-                        <p style="margin: 0; font-size: 15px; color: #333333; font-weight: 500;">${reason}</p>
-                      </div>
-                      
-                      <div style="text-align: center; margin: 28px 0;">
-                        <p style="margin: 0 0 12px; font-size: 14px; color: #666666;">Strike Count</p>
-                        <div style="display: inline-flex; align-items: center; gap: 8px;">
-                          ${[1, 2, 3].map(i => `<span style="display: inline-block; width: 32px; height: 32px; border-radius: 50%; text-align: center; line-height: 32px; font-weight: 700; font-size: 14px; ${i <= strikes ? 'background-color: #e74c3c; color: #ffffff;' : 'background-color: #eeeeee; color: #999999;'}">${i}</span>`).join('')}
-                        </div>
-                        <p style="margin: 12px 0 0; font-size: 13px; color: #999999;">${strikes} of 3 strikes</p>
-                      </div>
-                      
-                      <div style="background-color: #faf8fb; border-radius: 10px; padding: 20px; margin-top: 24px;">
-                        <p style="margin: 0; font-size: 14px; color: #666666; line-height: 1.6; text-align: center;">
-                          <strong style="color: #800080;">Important:</strong> If you receive 3 strikes, your account will be permanently blocked. Please review our guidelines to ensure respectful interactions.
-                        </p>
-                      </div>
-                    </td>
-                  </tr>
-                  
-                  <!-- Footer -->
-                  <tr>
-                    <td style="padding: 24px 32px 32px; background-color: #faf8fb; border-top: 1px solid #f0e6f5; border-radius: 0 0 16px 16px;">
-                      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-                        <tr>
-                          <td style="text-align: center; padding-bottom: 16px;">
-                            <a href="https://meintoyou.com/about" style="color: #800080; text-decoration: none; font-size: 13px; font-weight: 500; margin: 0 12px;">About</a>
-                            <a href="https://meintoyou.com/contact" style="color: #800080; text-decoration: none; font-size: 13px; font-weight: 500; margin: 0 12px;">Contact</a>
-                            <a href="https://meintoyou.com/privacy" style="color: #800080; text-decoration: none; font-size: 13px; font-weight: 500; margin: 0 12px;">Privacy</a>
-                          </td>
-                        </tr>
-                        <tr>
-                          <td style="text-align: center;">
-                            <p style="margin: 0; font-size: 12px; color: #999999; line-height: 1.5;">
-                              © ${new Date().getFullYear()} MeIntoYou. All rights reserved.<br>
-                              <span style="color: #bbbbbb;">This is an automated message, please do not reply.</span>
-                            </p>
-                          </td>
-                        </tr>
-                      </table>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-        </body>
-        </html>
-      `,
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-    console.log("Email sent successfully:", info.messageId);
-    return true;
-  } catch (error: any) {
-    console.error("Email sending error:", {
-      message: error.message,
-      code: error.code,
-      command: error.command,
-      response: error.response,
-      responseCode: error.responseCode,
+      subject: "AIMS Capital — Membership Update",
+      html: wrapHtml(`
+        <p style="margin:0 0 20px;font-size:16px;color:#1a1a1a;line-height:1.6;">Dear ${name},</p>
+        <p style="margin:0 0 20px;font-size:15px;color:#444;line-height:1.6;">Your membership application could not be approved at this time.</p>
+        <div style="background:#fdf2f0;border-left:4px solid #d32f2f;padding:16px 20px;margin:24px 0;border-radius:0 8px 8px 0;">
+          <p style="margin:0 0 6px;font-size:12px;color:#888;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Reason</p>
+          <p style="margin:0;font-size:15px;color:#1a1a1a;font-weight:500;">${reason}</p>
+        </div>
+        <p style="margin:20px 0 0;font-size:14px;color:#666;line-height:1.6;">
+          You can update your information and re-submit your application at any time.
+        </p>
+        <div style="text-align:center;margin:24px 0;">
+          <a href="https://aimscapital.com/membership" style="display:inline-block;background:#0F2B4A;color:#fff;text-decoration:none;padding:14px 32px;border-radius:10px;font-size:14px;font-weight:600;">Update & Re-submit</a>
+        </div>
+      `),
     });
+    return true;
+  } catch (e: any) {
+    console.error("Email error (rejected):", e.message);
     return false;
   }
-};
+}
 
-export const sendBlockedEmail = async (email: string, reason: string) => {
+export async function sendAppointmentConfirmedEmail(email: string, name: string, title: string, date: string, time: string, platform: string) {
   try {
-    const mailOptions = {
-      from: "Meintoyou Account Team <noreply@meintoyou.com>",
+    await transporter.sendMail({
+      from: "AIMS Capital <noreply@meintoyou.com>",
       to: email,
-      subject: "MeIntoYou - Account Blocked",
-      html: `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>MeIntoYou Account Blocked</title>
-        </head>
-        <body style="margin: 0; padding: 0; background-color: #f8f6fa; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-            <tr>
-              <td align="center" style="padding: 40px 20px;">
-                <table role="presentation" width="100%" max-width="480" cellpadding="0" cellspacing="0" border="0" style="max-width: 480px; background-color: #ffffff; border-radius: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);">
-                  <!-- Header -->
-                  <tr>
-                    <td style="padding: 48px 32px 32px; text-align: center; border-bottom: 1px solid #f0e6f5;">
-                      <div style="font-size: 28px; font-weight: 700; color: #800080; letter-spacing: -0.5px;">MeIntoYou</div>
-                      <div style="font-size: 13px; color: #c0392b; margin-top: 6px; font-weight: 600;">Account Blocked</div>
-                    </td>
-                  </tr>
-                  
-                  <!-- Content -->
-                  <tr>
-                    <td style="padding: 40px 32px;">
-                      <div style="text-align: center; margin-bottom: 28px;">
-                        <div style="display: inline-block; background: linear-gradient(135deg, #c0392b 0%, #e74c3c 100%); color: #ffffff; padding: 16px 40px; border-radius: 12px; font-size: 18px; font-weight: 700; letter-spacing: 2px; box-shadow: 0 4px 12px rgba(192, 57, 43, 0.3);">REJECTED</div>
-                      </div>
-                      
-                      <p style="margin: 0 0 20px; font-size: 16px; color: #333333; line-height: 1.6; text-align: center;">
-                        Your account has been permanently blocked due to repeated violations of our community guidelines.
-                      </p>
-                      
-                      <div style="background-color: #fdf6f3; border-left: 4px solid #c0392b; padding: 16px 20px; margin: 24px 0; border-radius: 0 8px 8px 0;">
-                        <p style="margin: 0 0 8px; font-size: 13px; color: #888888; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">Final Violation</p>
-                        <p style="margin: 0; font-size: 15px; color: #333333; font-weight: 500;">${reason}</p>
-                      </div>
-                      
-                      <div style="background-color: #faf8fb; border-radius: 10px; padding: 24px; margin-top: 28px;">
-                        <p style="margin: 0 0 16px; font-size: 14px; color: #666666; line-height: 1.6; text-align: center;">
-                          If you believe this was a mistake, you can appeal this decision:
-                        </p>
-                        <p style="margin: 0; text-align: center;">
-                          <a href="mailto:support.mentoyou@proton.me" style="display: inline-block; background-color: #800080; color: #ffffff; text-decoration: none; padding: 14px 28px; border-radius: 8px; font-size: 14px; font-weight: 600;">Contact Support</a>
-                        </p>
-                        <p style="margin: 12px 0 0; font-size: 12px; color: #999999; text-align: center;">
-                          support.mentoyou@proton.me
-                        </p>
-                      </div>
-                    </td>
-                  </tr>
-                  
-                  <!-- Footer -->
-                  <tr>
-                    <td style="padding: 24px 32px 32px; background-color: #faf8fb; border-top: 1px solid #f0e6f5; border-radius: 0 0 16px 16px;">
-                      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-                        <tr>
-                          <td style="text-align: center; padding-bottom: 16px;">
-                            <a href="https://meintoyou.com/about" style="color: #800080; text-decoration: none; font-size: 13px; font-weight: 500; margin: 0 12px;">About</a>
-                            <a href="https://meintoyou.com/contact" style="color: #800080; text-decoration: none; font-size: 13px; font-weight: 500; margin: 0 12px;">Contact</a>
-                            <a href="https://meintoyou.com/privacy" style="color: #800080; text-decoration: none; font-size: 13px; font-weight: 500; margin: 0 12px;">Privacy</a>
-                          </td>
-                        </tr>
-                        <tr>
-                          <td style="text-align: center;">
-                            <p style="margin: 0; font-size: 12px; color: #999999; line-height: 1.5;">
-                              © ${new Date().getFullYear()} MeIntoYou. All rights reserved.<br>
-                              <span style="color: #bbbbbb;">This is an automated message, please do not reply.</span>
-                            </p>
-                          </td>
-                        </tr>
-                      </table>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
+      subject: "AIMS Capital — Appointment Confirmed",
+      html: wrapHtml(`
+        <p style="margin:0 0 20px;font-size:16px;color:#1a1a1a;line-height:1.6;">Dear ${name},</p>
+        <p style="margin:0 0 24px;font-size:15px;color:#444;line-height:1.6;">Your appointment has been <strong style="color:#0F2B4A;">confirmed</strong>.</p>
+        <div style="background:#f7fafc;border:1px solid #e8edf2;border-radius:12px;padding:20px;margin:24px 0;">
+          <table style="width:100%;font-size:14px;color:#444;">
+            <tr><td style="padding:6px 0;color:#8899aa;width:80px;">Title</td><td style="padding:6px 0;font-weight:600;color:#1a1a1a;">${title}</td></tr>
+            <tr><td style="padding:6px 0;color:#8899aa;">Date</td><td style="padding:6px 0;font-weight:600;color:#1a1a1a;">${date}</td></tr>
+            <tr><td style="padding:6px 0;color:#8899aa;">Time</td><td style="padding:6px 0;font-weight:600;color:#1a1a1a;">${time}</td></tr>
+            <tr><td style="padding:6px 0;color:#8899aa;">Platform</td><td style="padding:6px 0;font-weight:600;color:#1a1a1a;">${platform}</td></tr>
           </table>
-        </body>
-        </html>
-      `,
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-    console.log("Email sent successfully:", info.messageId);
-    return true;
-  } catch (error: any) {
-    console.error("Email sending error:", {
-      message: error.message,
-      code: error.code,
-      command: error.command,
-      response: error.response,
-      responseCode: error.responseCode,
+        </div>
+        <p style="margin:20px 0 0;font-size:14px;color:#666;line-height:1.6;">
+          Please ensure you have the necessary access set up before the meeting. If you need to reschedule, sign in to your dashboard.
+        </p>
+      `),
     });
+    return true;
+  } catch (e: any) {
+    console.error("Email error (appointment confirmed):", e.message);
     return false;
   }
-};
+}
 
-export const sendVerificationApprovedEmail = async (email: string) => {
+export async function sendContactReplyEmail(email: string, name: string, reply: string) {
   try {
-    const mailOptions = {
-      from: "Meintoyou Account Team <noreply@meintoyou.com>",
+    await transporter.sendMail({
+      from: "AIMS Capital <noreply@meintoyou.com>",
       to: email,
-      subject: "MeIntoYou - Identity Verified",
-      html: `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>MeIntoYou Identity Verified</title>
-        </head>
-        <body style="margin: 0; padding: 0; background-color: #f8f6fa; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-            <tr>
-              <td align="center" style="padding: 40px 20px;">
-                <table role="presentation" width="100%" max-width="480" cellpadding="0" cellspacing="0" border="0" style="max-width: 480px; background-color: #ffffff; border-radius: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);">
-                  <tr>
-                    <td style="padding: 48px 32px 32px; text-align: center; border-bottom: 1px solid #f0e6f5;">
-                      <div style="font-size: 28px; font-weight: 700; color: #800080; letter-spacing: -0.5px;">MeIntoYou</div>
-                      <div style="font-size: 13px; color: #27ae60; margin-top: 6px; font-weight: 600;">Identity Verified</div>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 40px 32px;">
-                      <div style="text-align: center; margin-bottom: 28px;">
-                        <div style="display: inline-block; background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%); color: #ffffff; padding: 16px 40px; border-radius: 12px; font-size: 18px; font-weight: 700; letter-spacing: 2px; box-shadow: 0 4px 12px rgba(39, 174, 96, 0.3);">VERIFIED</div>
-                      </div>
-                      <p style="margin: 0 0 20px; font-size: 16px; color: #333333; line-height: 1.6; text-align: center;">
-                        Congratulations! Your identity verification has been <strong style="color: #27ae60;">approved</strong>.
-                      </p>
-                      <p style="margin: 0; font-size: 14px; color: #666666; line-height: 1.6; text-align: center;">
-                        You now have full access to all MeIntoYou features. Thank you for helping us keep our community safe.
-                      </p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 24px 32px 32px; background-color: #faf8fb; border-top: 1px solid #f0e6f5; border-radius: 0 0 16px 16px;">
-                      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-                        <tr>
-                          <td style="text-align: center; padding-bottom: 16px;">
-                            <a href="https://meintoyou.com/about" style="color: #800080; text-decoration: none; font-size: 13px; font-weight: 500; margin: 0 12px;">About</a>
-                            <a href="https://meintoyou.com/contact" style="color: #800080; text-decoration: none; font-size: 13px; font-weight: 500; margin: 0 12px;">Contact</a>
-                            <a href="https://meintoyou.com/privacy" style="color: #800080; text-decoration: none; font-size: 13px; font-weight: 500; margin: 0 12px;">Privacy</a>
-                          </td>
-                        </tr>
-                        <tr>
-                          <td style="text-align: center;">
-                            <p style="margin: 0; font-size: 12px; color: #999999; line-height: 1.5;">
-                              © ${new Date().getFullYear()} MeIntoYou. All rights reserved.<br>
-                              <span style="color: #bbbbbb;">This is an automated message, please do not reply.</span>
-                            </p>
-                          </td>
-                        </tr>
-                      </table>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-        </body>
-        </html>
-      `,
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-    console.log("Verification approved email sent:", info.messageId);
-    return true;
-  } catch (error: any) {
-    console.error("Verification approved email error:", error.message);
-    return false;
-  }
-};
-
-export const sendVerificationRejectedEmail = async (email: string, reason: string) => {
-  try {
-    const mailOptions = {
-      from: "Meintoyou Account Team <noreply@meintoyou.com>",
-      to: email,
-      subject: "MeIntoYou - Identity Verification Rejected",
-      html: `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>MeIntoYou Verification Rejected</title>
-        </head>
-        <body style="margin: 0; padding: 0; background-color: #f8f6fa; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-            <tr>
-              <td align="center" style="padding: 40px 20px;">
-                <table role="presentation" width="100%" max-width="480" cellpadding="0" cellspacing="0" border="0" style="max-width: 480px; background-color: #ffffff; border-radius: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);">
-                  <tr>
-                    <td style="padding: 48px 32px 32px; text-align: center; border-bottom: 1px solid #f0e6f5;">
-                      <div style="font-size: 28px; font-weight: 700; color: #800080; letter-spacing: -0.5px;">MeIntoYou</div>
-                      <div style="font-size: 13px; color: #c0392b; margin-top: 6px; font-weight: 600;">Verification Rejected</div>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 40px 32px;">
-                      <p style="margin: 0 0 20px; font-size: 16px; color: #333333; line-height: 1.6; text-align: center;">
-                        Unfortunately, your identity verification was <strong style="color: #c0392b;">not approved</strong>.
-                      </p>
-                      <div style="background-color: #fdf6f3; border-left: 4px solid #c0392b; padding: 16px 20px; margin: 24px 0; border-radius: 0 8px 8px 0;">
-                        <p style="margin: 0 0 8px; font-size: 13px; color: #888888; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">Reason</p>
-                        <p style="margin: 0; font-size: 15px; color: #333333; font-weight: 500;">${reason || 'Documents did not meet verification requirements'}</p>
-                      </div>
-                      <p style="margin: 20px 0 0; font-size: 14px; color: #666666; line-height: 1.6; text-align: center;">
-                        You can submit a new verification request with clearer documents at any time.
-                      </p>
-                      <div style="background-color: #faf8fb; border-radius: 10px; padding: 20px; margin-top: 24px;">
-                        <p style="margin: 0; text-align: center;">
-                          <a href="mailto:support.mentoyou@proton.me" style="display: inline-block; background-color: #800080; color: #ffffff; text-decoration: none; padding: 14px 28px; border-radius: 8px; font-size: 14px; font-weight: 600;">Contact Support</a>
-                        </p>
-                        <p style="margin: 12px 0 0; font-size: 12px; color: #999999; text-align: center;">
-                          support.mentoyou@proton.me
-                        </p>
-                      </div>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 24px 32px 32px; background-color: #faf8fb; border-top: 1px solid #f0e6f5; border-radius: 0 0 16px 16px;">
-                      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-                        <tr>
-                          <td style="text-align: center; padding-bottom: 16px;">
-                            <a href="https://meintoyou.com/about" style="color: #800080; text-decoration: none; font-size: 13px; font-weight: 500; margin: 0 12px;">About</a>
-                            <a href="https://meintoyou.com/contact" style="color: #800080; text-decoration: none; font-size: 13px; font-weight: 500; margin: 0 12px;">Contact</a>
-                            <a href="https://meintoyou.com/privacy" style="color: #800080; text-decoration: none; font-size: 13px; font-weight: 500; margin: 0 12px;">Privacy</a>
-                          </td>
-                        </tr>
-                        <tr>
-                          <td style="text-align: center;">
-                            <p style="margin: 0; font-size: 12px; color: #999999; line-height: 1.5;">
-                              © ${new Date().getFullYear()} MeIntoYou. All rights reserved.<br>
-                              <span style="color: #bbbbbb;">This is an automated message, please do not reply.</span>
-                            </p>
-                          </td>
-                        </tr>
-                      </table>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-        </body>
-        </html>
-      `,
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-    console.log("Verification rejected email sent:", info.messageId);
-    return true;
-  } catch (error: any) {
-    console.error("Verification rejected email error:", error.message);
-    return false;
-  }
-};
-
-export const sendUnblockedEmail = async (email: string) => {
-  try {
-    const mailOptions = {
-      from: "Meintoyou Account Team <noreply@meintoyou.com>",
-      to: email,
-      subject: "MeIntoYou - Account Unblocked",
-      html: `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>MeIntoYou Account Unblocked</title>
-        </head>
-        <body style="margin: 0; padding: 0; background-color: #f8f6fa; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-            <tr>
-              <td align="center" style="padding: 40px 20px;">
-                <table role="presentation" width="100%" max-width="480" cellpadding="0" cellspacing="0" border="0" style="max-width: 480px; background-color: #ffffff; border-radius: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);">
-                  <tr>
-                    <td style="padding: 48px 32px 32px; text-align: center; border-bottom: 1px solid #f0e6f5;">
-                      <div style="font-size: 28px; font-weight: 700; color: #800080; letter-spacing: -0.5px;">MeIntoYou</div>
-                      <div style="font-size: 13px; color: #27ae60; margin-top: 6px; font-weight: 600;">Account Unblocked</div>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 40px 32px;">
-                      <div style="text-align: center; margin-bottom: 28px;">
-                        <div style="display: inline-block; background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%); color: #ffffff; padding: 16px 40px; border-radius: 12px; font-size: 18px; font-weight: 700; letter-spacing: 2px; box-shadow: 0 4px 12px rgba(39, 174, 96, 0.3);">UNBLOCKED</div>
-                      </div>
-                      <p style="margin: 0 0 20px; font-size: 16px; color: #333333; line-height: 1.6; text-align: center;">
-                        Good news! Your account has been <strong style="color: #27ae60;">unblocked</strong> and is now active again.
-                      </p>
-                      <p style="margin: 0; font-size: 14px; color: #666666; line-height: 1.6; text-align: center;">
-                        You can now log in and use all MeIntoYou features. Please ensure you follow our community guidelines to avoid future blocks.
-                      </p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 24px 32px 32px; background-color: #faf8fb; border-top: 1px solid #f0e6f5; border-radius: 0 0 16px 16px;">
-                      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-                        <tr>
-                          <td style="text-align: center; padding-bottom: 16px;">
-                            <a href="https://meintoyou.com/about" style="color: #800080; text-decoration: none; font-size: 13px; font-weight: 500; margin: 0 12px;">About</a>
-                            <a href="https://meintoyou.com/contact" style="color: #800080; text-decoration: none; font-size: 13px; font-weight: 500; margin: 0 12px;">Contact</a>
-                            <a href="https://meintoyou.com/privacy" style="color: #800080; text-decoration: none; font-size: 13px; font-weight: 500; margin: 0 12px;">Privacy</a>
-                          </td>
-                        </tr>
-                        <tr>
-                          <td style="text-align: center;">
-                            <p style="margin: 0; font-size: 12px; color: #999999; line-height: 1.5;">
-                              © ${new Date().getFullYear()} MeIntoYou. All rights reserved.<br>
-                              <span style="color: #bbbbbb;">This is an automated message, please do not reply.</span>
-                            </p>
-                          </td>
-                        </tr>
-                      </table>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-        </body>
-        </html>
-      `,
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-    console.log("Unblocked email sent:", info.messageId);
-    return true;
-  } catch (error: any) {
-    console.error("Unblocked email error:", error.message);
-    return false;
-  }
-};
-
-export const sendPasswordResetEmail = async (email: string, otp: string) => {
-  try {
-    const mailOptions = {
-      from: "Meintoyou Account Team <noreply@meintoyou.com>",
-      to: email,
-      subject: "MeIntoYou - Password Reset",
-      html: `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>MeIntoYou Password Reset</title>
-        </head>
-        <body style="margin: 0; padding: 0; background-color: #f8f6fa; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-            <tr>
-              <td align="center" style="padding: 40px 20px;">
-                <table role="presentation" width="100%" max-width="480" cellpadding="0" cellspacing="0" border="0" style="max-width: 480px; background-color: #ffffff; border-radius: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);">
-                  <!-- Header -->
-                  <tr>
-                    <td style="padding: 48px 32px 32px; text-align: center; border-bottom: 1px solid #f0e6f5;">
-                      <div style="font-size: 28px; font-weight: 700; color: #800080; letter-spacing: -0.5px;">MeIntoYou</div>
-                      <div style="font-size: 13px; color: #9b59b6; margin-top: 6px; font-weight: 500;">Password Reset</div>
-                    </td>
-                  </tr>
-                  
-                  <!-- Content -->
-                  <tr>
-                    <td style="padding: 40px 32px;">
-                      <p style="margin: 0 0 20px; font-size: 16px; color: #333333; line-height: 1.6;">
-                        We received a request to reset your password. Use the code below to continue:
-                      </p>
-                      
-                      <div style="text-align: center; margin: 32px 0;">
-                        <div style="display: inline-block; background-color: #faf5fc; border: 2px solid #800080; border-radius: 12px; padding: 24px 40px;">
-                          <span style="font-size: 36px; font-weight: 700; color: #800080; letter-spacing: 8px; font-family: 'Courier New', monospace;">${otp}</span>
-                        </div>
-                      </div>
-                      
-                      <p style="margin: 24px 0 0; font-size: 14px; color: #666666; line-height: 1.5; text-align: center;">
-                        This code expires in <strong style="color: #800080;">10 minutes</strong>.
-                      </p>
-                      
-                      <div style="background-color: #fdf6f3; border-radius: 10px; padding: 16px 20px; margin-top: 24px;">
-                        <p style="margin: 0; font-size: 13px; color: #888888; line-height: 1.5; text-align: center;">
-                          <strong style="color: #e67e22;">Security tip:</strong> If you didn't request this reset, someone may be trying to access your account. Please secure your account and consider changing your password.
-                        </p>
-                      </div>
-                    </td>
-                  </tr>
-                  
-                  <!-- Footer -->
-                  <tr>
-                    <td style="padding: 24px 32px 32px; background-color: #faf8fb; border-top: 1px solid #f0e6f5; border-radius: 0 0 16px 16px;">
-                      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-                        <tr>
-                          <td style="text-align: center; padding-bottom: 16px;">
-                            <a href="https://meintoyou.com/about" style="color: #800080; text-decoration: none; font-size: 13px; font-weight: 500; margin: 0 12px;">About</a>
-                            <a href="https://meintoyou.com/contact" style="color: #800080; text-decoration: none; font-size: 13px; font-weight: 500; margin: 0 12px;">Contact</a>
-                            <a href="https://meintoyou.com/privacy" style="color: #800080; text-decoration: none; font-size: 13px; font-weight: 500; margin: 0 12px;">Privacy</a>
-                          </td>
-                        </tr>
-                        <tr>
-                          <td style="text-align: center;">
-                            <p style="margin: 0; font-size: 12px; color: #999999; line-height: 1.5;">
-                              © ${new Date().getFullYear()} MeIntoYou. All rights reserved.<br>
-                              <span style="color: #bbbbbb;">This is an automated message, please do not reply.</span>
-                            </p>
-                          </td>
-                        </tr>
-                      </table>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-        </body>
-        </html>
-      `,
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-    console.log("Email sent successfully:", info.messageId);
-    return true;
-  } catch (error: any) {
-    console.error("Email sending error:", {
-      message: error.message,
-      code: error.code,
-      command: error.command,
-      response: error.response,
-      responseCode: error.responseCode,
+      subject: "AIMS Capital — Response to Your Inquiry",
+      html: wrapHtml(`
+        <p style="margin:0 0 20px;font-size:16px;color:#1a1a1a;line-height:1.6;">Dear ${name},</p>
+        <p style="margin:0 0 16px;font-size:15px;color:#444;line-height:1.6;">Thank you for reaching out to AIMS Capital. Here is our response:</p>
+        <div style="background:#f7fafc;border:1px solid #e8edf2;border-radius:12px;padding:20px;margin:24px 0;">
+          <p style="margin:0;font-size:15px;color:#1a1a1a;line-height:1.7;white-space:pre-wrap;">${reply}</p>
+        </div>
+        <p style="margin:20px 0 0;font-size:14px;color:#666;line-height:1.6;">
+          If you have further questions, please don't hesitate to contact us again.
+        </p>
+      `),
     });
+    return true;
+  } catch (e: any) {
+    console.error("Email error (contact reply):", e.message);
     return false;
   }
-};
+}
 
+export async function sendServiceRequestUpdateEmail(email: string, name: string, service: string, status: string) {
+  const label = status === "approved" ? "Approved" : "Rejected";
+  const color = status === "approved" ? "#0F2B4A" : "#d32f2f";
+  try {
+    await transporter.sendMail({
+      from: "AIMS Capital <noreply@meintoyou.com>",
+      to: email,
+      subject: `AIMS Capital — Service Request ${label}`,
+      html: wrapHtml(`
+        <p style="margin:0 0 20px;font-size:16px;color:#1a1a1a;line-height:1.6;">Dear ${name},</p>
+        <p style="margin:0 0 20px;font-size:15px;color:#444;line-height:1.6;">Your service request for <strong style="color:#1a1a1a;">${service}</strong> has been <strong style="color:${color};">${label}</strong>.</p>
+        <div style="text-align:center;margin:32px 0;">
+          <div style="display:inline-block;background:${color};color:#fff;padding:14px 36px;border-radius:10px;font-size:15px;font-weight:700;letter-spacing:1px;text-transform:uppercase;">${label}</div>
+        </div>
+      `),
+    });
+    return true;
+  } catch (e: any) {
+    console.error("Email error (service request):", e.message);
+    return false;
+  }
+}
+
+export async function sendConsultationReplyEmail(email: string, name: string, replyMessage: string, date: string, time: string, platform: string) {
+  try {
+    await transporter.sendMail({
+      from: "AIMS Capital <noreply@meintoyou.com>",
+      to: email,
+      subject: "AIMS Capital — Your Consultation Booking",
+      html: wrapHtml(`
+        <p style="margin:0 0 20px;font-size:16px;color:#1a1a1a;line-height:1.6;">Dear ${name},</p>
+        <p style="margin:0 0 20px;font-size:15px;color:#444;line-height:1.6;">Thank you for booking a consultation with AIMS Capital. Your booking has been confirmed.</p>
+        <div style="background:#f7fafc;border:1px solid #e8edf2;border-radius:12px;padding:20px;margin:24px 0;">
+          <table style="width:100%;font-size:14px;color:#444;">
+            <tr><td style="padding:6px 0;color:#8899aa;width:80px;">Date</td><td style="padding:6px 0;font-weight:600;color:#1a1a1a;">${date}</td></tr>
+            <tr><td style="padding:6px 0;color:#8899aa;">Time</td><td style="padding:6px 0;font-weight:600;color:#1a1a1a;">${time}</td></tr>
+            <tr><td style="padding:6px 0;color:#8899aa;">Platform</td><td style="padding:6px 0;font-weight:600;color:#1a1a1a;">${platform}</td></tr>
+          </table>
+        </div>
+        <p style="margin:0 0 12px;font-size:15px;color:#444;line-height:1.6;">Here are the details and next steps:</p>
+        <div style="background:#f0f5fa;border:1px solid #d0ddee;border-radius:12px;padding:20px;margin:24px 0;">
+          <p style="margin:0;font-size:15px;color:#1a1a1a;line-height:1.7;white-space:pre-wrap;">${replyMessage}</p>
+        </div>
+        <p style="margin:20px 0 0;font-size:14px;color:#666;line-height:1.6;">If you have any questions before the consultation, please reply to this email.</p>
+      `),
+    });
+    return true;
+  } catch (e: any) {
+    console.error("Email error (consultation reply):", e.message);
+    return false;
+  }
+}

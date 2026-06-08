@@ -1,67 +1,45 @@
-import { Request, Response } from 'express'
-import { Op } from 'sequelize'
-import ContactMessage from '../models/ContactMessage'
+import { Request, Response } from "express";
+import ContactMessage from "../models/ContactMessage";
+import { sendContactReplyEmail } from "../utils/email";
+import { addSystemMessage } from "../utils/messages";
 
-export const submitContactMessage = async (req: Request, res: Response) => {
+export const submit = async (req: Request, res: Response) => {
   try {
-    const { name, email, message } = req.body
-
-    if (!name || !email || !message) {
-      res.status(400).json({ status: 0, message: 'Missing required fields' })
-      return
+    const { name, email, subject, body } = req.body;
+    if (!name || !email || !subject || !body) {
+      return res.status(400).json({ error: "Name, email, subject, and body required" });
     }
-
-    const created = await ContactMessage.create({
-      name,
-      email,
-      message,
-    })
-
-    res.status(201).json({ status: 1, id: created.id, message: 'Message received' })
-  } catch (error: any) {
-    console.error('Submit contact error:', error)
-    res.status(500).json({ status: 0, message: 'Server error' })
+    const msg = await ContactMessage.create({ name, email, subject, body, isRead: false, replied: false });
+    console.log(`New contact message from ${name} (${email}): ${subject}`);
+    res.json({ success: true, id: msg.id });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
   }
-}
+};
 
-export const getContactMessages = async (req: Request, res: Response) => {
+export const list = async (req: Request, res: Response) => {
   try {
-    const limit = Math.min(Number(req.query.limit) || 50, 200)
-    const offset = Math.max(Number(req.query.offset) || 0, 0)
-
-    const rows = await ContactMessage.findAll({
-      order: [['createdAt', 'DESC']],
-      limit,
-      offset,
-    })
-
-    res.status(200).json(rows)
-  } catch (error: any) {
-    console.error('Get contact messages error:', error)
-    res.status(500).json({ status: 0, message: 'Server error' })
+    const items = await ContactMessage.findAll({ order: [["createdAt", "DESC"]] });
+    res.json(items);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
   }
-}
+};
 
-export const deleteContactMessages = async (req: Request, res: Response) => {
+export const reply = async (req: Request, res: Response) => {
   try {
-    const { ids } = req.body
+    const { id, message } = req.body;
+    if (!message) return res.status(400).json({ error: "Reply message is required" });
 
-    if (!Array.isArray(ids) || ids.length === 0) {
-      res.status(400).json({ status: 0, message: 'No IDs provided' })
-      return
-    }
+    const item = await ContactMessage.findByPk(id);
+    if (!item) return res.status(404).json({ error: "Not found" });
 
-    const deleted = await ContactMessage.destroy({
-      where: {
-        id: {
-          [Op.in]: ids
-        }
-      }
-    })
+    await item.update({ isRead: true, replied: true, replyMessage: message, repliedAt: new Date() });
+    await sendContactReplyEmail(item.email, item.name, message);
+    addSystemMessage(item.email, "Response to Your Inquiry", message, item.name);
 
-    res.status(200).json({ status: 1, deleted, message: `${deleted} message(s) deleted` })
-  } catch (error: any) {
-    console.error('Delete contact messages error:', error)
-    res.status(500).json({ status: 0, message: 'Server error' })
+    res.json({ success: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
   }
-}
+};

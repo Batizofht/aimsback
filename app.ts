@@ -1,26 +1,16 @@
 import bodyParser from 'body-parser';
 import cors from 'cors';
 import express, { Express } from 'express';
-import UserRoute from './routes/UserRoute';
-import tokenRoute from './routes/tokenRoute';
-import apiRoute from './routes/apiRoute';
-import validationRoute from './routes/validationRoute';
-import webRoute from './routes/WebRoute';
 import path from 'path';
 import fs from 'fs';
-import { touchLastActive } from './middlewares/touchLastActive';
-import { generateSitemap, generateRobotsTxt } from './controllers/SitemapController';
 
 let app: Express = express();
 app.use(cors());
 
-/* ================================ HERE ARE ALL THE ROUTES FORWARDING CENTER AND ALSO CONTROLLING AUTHORIZATION IN FUTUTRE ============== */
 app.use(bodyParser.json({ limit: '1000mb' }));
 app.use(bodyParser.urlencoded({ extended: true, limit: '1000mb' }));
 
-app.use(touchLastActive);
-
-// Serve static files from uploads directory (supports both server cwd and project root cwd)
+// Serve static files from uploads directory
 const uploadsPaths = [
   path.join(process.cwd(), 'uploads'),
   path.join(process.cwd(), 'server', 'uploads'),
@@ -33,26 +23,31 @@ for (const uploadsPath of uploadsPaths) {
   }
 }
 
-// Token generation endpoint for Agora
-app.use("/vava", tokenRoute);
+// API routes
+import AuthRoute from './routes/AuthRoute';
+import AdminRoute from './routes/AdminRoute';
+import BlogPostRoute from './routes/BlogPostRoute';
+import AppointmentRoute from './routes/AppointmentRoute';
+import MessageRoute from './routes/MessageRoute';
+import MemberRoute from './routes/MemberRoute';
+import ServiceRequestRoute from './routes/ServiceRequestRoute';
+import ContactRoute from './routes/ContactRoute';
+import ConsultationRoute from './routes/ConsultationRoute';
+import UploadRoute from './routes/UploadRoute';
 
-app.use("/vava", UserRoute);
-
-// New clean API routes
-app.use("/api", apiRoute);
-
-// Validation routes (email availability, etc.)
-app.use("/api/validate", validationRoute);
-
-// Web dashboard routes
-app.use("/api/web", webRoute);
-
-// SEO routes - dynamic sitemap and robots.txt
-app.get('/sitemap.xml', generateSitemap);
-app.get('/robots.txt', generateRobotsTxt);
+app.use("/api", AuthRoute);
+app.use("/api/admins", AdminRoute);
+app.use("/api/posts", BlogPostRoute);
+app.use("/api/appointments", AppointmentRoute);
+app.use("/api/messages", MessageRoute);
+app.use("/api/members", MemberRoute);
+app.use("/api/service-requests", ServiceRequestRoute);
+app.use("/api/contact", ContactRoute);
+app.use("/api/consultations", ConsultationRoute);
+app.use("/api/upload", UploadRoute);
 
 app.get('/', (req, res) => {
-  res.send('MeIntoYou API Server Running |FROM LIGHT INC|');
+  res.send('AIMS Capital API Server');
 });
 
 export default app;
