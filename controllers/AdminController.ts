@@ -48,3 +48,27 @@ export const update = async (req: Request, res: Response) => {
     res.status(500).json({ error: e.message });
   }
 };
+
+export const changePassword = async (req: Request, res: Response) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const adminId = (req as any).admin?.id;
+
+    if (!adminId) return res.status(401).json({ error: "Unauthorized" });
+    if (!currentPassword || !newPassword) return res.status(400).json({ error: "Current and new password required" });
+    if (newPassword.length < 8) return res.status(400).json({ error: "New password must be at least 8 characters" });
+
+    const admin = await Admin.findByPk(adminId);
+    if (!admin) return res.status(404).json({ error: "Admin not found" });
+
+    const validPassword = await bcrypt.compare(currentPassword, admin.passwordHash);
+    if (!validPassword) return res.status(400).json({ error: "Current password is incorrect" });
+
+    const hash = await bcrypt.hash(newPassword, 10);
+    await admin.update({ passwordHash: hash });
+
+    res.json({ success: true, message: "Password changed successfully" });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+};
