@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import ContactMessage from "../models/ContactMessage";
-import { sendContactReplyEmail } from "../utils/email";
+import { sendContactReplyEmail, sendContactMessageEmail } from "../utils/email";
 import { addSystemMessage } from "../utils/messages";
 
 export const submit = async (req: Request, res: Response) => {
@@ -34,9 +34,16 @@ export const reply = async (req: Request, res: Response) => {
     const item = await ContactMessage.findByPk(id);
     if (!item) return res.status(404).json({ error: "Not found" });
 
+    const isFirst = !item.replied;
     await item.update({ isRead: true, replied: true, replyMessage: message, repliedAt: new Date() });
-    await sendContactReplyEmail(item.email, item.name, message);
-    addSystemMessage(item.email, "Response to Your Inquiry", message, item.name);
+
+    if (isFirst) {
+      await sendContactReplyEmail(item.email, item.name, message);
+      addSystemMessage(item.email, "Response to Your Inquiry", message, item.name);
+    } else {
+      await sendContactMessageEmail(item.email, item.name, message);
+      addSystemMessage(item.email, "Message Regarding Your Inquiry", message, item.name);
+    }
 
     res.json({ success: true });
   } catch (e: any) {

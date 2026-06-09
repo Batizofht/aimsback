@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import Appointment from "../models/Appointment";
-import { sendAppointmentConfirmedEmail } from "../utils/email";
+import { sendAppointmentScheduledEmail, sendAppointmentConfirmedEmail } from "../utils/email";
 import { addSystemMessage } from "../utils/messages";
 
 export const list = async (req: Request, res: Response) => {
@@ -15,6 +15,10 @@ export const list = async (req: Request, res: Response) => {
 export const create = async (req: Request, res: Response) => {
   try {
     const item = await Appointment.create({ ...req.body });
+    if (item.clientEmail && item.clientName) {
+      await sendAppointmentScheduledEmail(item.clientEmail, item.clientName, item.title, item.date, item.time, item.platform);
+      addSystemMessage(item.clientEmail, "Appointment Scheduled", `A new appointment "${item.title}" has been scheduled for ${item.date} at ${item.time} (${item.platform}).`, item.clientName);
+    }
     res.json(item);
   } catch (e: any) {
     res.status(500).json({ error: e.message });

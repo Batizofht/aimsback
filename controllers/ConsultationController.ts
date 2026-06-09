@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import Consultation from "../models/Consultation";
-import { sendConsultationReplyEmail } from "../utils/email";
+import { sendConsultationReplyEmail, sendConsultationMessageEmail } from "../utils/email";
 import { addSystemMessage } from "../utils/messages";
 
 export const list = async (req: Request, res: Response) => {
@@ -41,9 +41,16 @@ export const reply = async (req: Request, res: Response) => {
     const item = await Consultation.findByPk(id);
     if (!item) return res.status(404).json({ error: "Not found" });
 
+    const isFirst = !item.adminReply;
     await item.update({ adminReply: message, status: "confirmed" });
-    await sendConsultationReplyEmail(item.email, item.name, message, item.date, item.time, item.platform);
-    addSystemMessage(item.email, "Consultation Confirmed", message, item.name);
+
+    if (isFirst) {
+      await sendConsultationReplyEmail(item.email, item.name, message, item.date, item.time, item.platform);
+      addSystemMessage(item.email, "Consultation Confirmed", message, item.name);
+    } else {
+      await sendConsultationMessageEmail(item.email, item.name, message);
+      addSystemMessage(item.email, "Message Regarding Your Consultation", message, item.name);
+    }
 
     res.json({ success: true });
   } catch (e: any) {
