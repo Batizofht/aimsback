@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import Consultation from "../models/Consultation";
-import { sendConsultationReplyEmail, sendConsultationMessageEmail } from "../utils/email";
+import { sendConsultationReplyEmail, sendConsultationMessageEmail, sendConsultationAutoReply, sendConsultationTeamNotification } from "../utils/email";
 import { addSystemMessage } from "../utils/messages";
 
 export const list = async (req: Request, res: Response) => {
@@ -16,6 +16,8 @@ export const create = async (req: Request, res: Response) => {
   try {
     const item = await Consultation.create({ ...req.body });
     console.log(`New consultation booking from ${item.name} (${item.email})`);
+    sendConsultationAutoReply(item.email, item.name, item.date, item.time, item.platform).catch(() => {});
+    sendConsultationTeamNotification(item.name, item.email, item.date, item.time, item.platform).catch(() => {});
     res.json(item);
   } catch (e: any) {
     res.status(500).json({ error: e.message });

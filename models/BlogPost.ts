@@ -13,6 +13,8 @@ interface BlogPostInterface {
   readTime: string
   image: string | null
   published: boolean
+  type: string
+  fileUrl: string | null
 }
 
 class BlogPostModel extends Model<BlogPostInterface> implements BlogPostInterface {
@@ -27,6 +29,8 @@ class BlogPostModel extends Model<BlogPostInterface> implements BlogPostInterfac
   readTime!: string
   image!: string | null
   published!: boolean
+  type!: string
+  fileUrl!: string | null
 }
 
 const BlogPost = db.define<BlogPostModel>(
@@ -43,6 +47,8 @@ const BlogPost = db.define<BlogPostModel>(
     readTime: { type: DataTypes.STRING(50), defaultValue: '3 min read' },
     image: { type: DataTypes.STRING(500), allowNull: true },
     published: { type: DataTypes.BOOLEAN, defaultValue: false },
+    type: { type: DataTypes.STRING(20), defaultValue: 'blog' },
+    fileUrl: { type: DataTypes.STRING(500), allowNull: true },
   },
   {
     tableName: 'blog_posts',

@@ -4,7 +4,19 @@ import BlogPost from "../models/BlogPost";
 
 export const list = async (req: Request, res: Response) => {
   try {
-    const posts = await BlogPost.findAll({ order: [["createdAt", "DESC"]] });
+    const where: any = {};
+    if (req.query.type) {
+      where.type = req.query.type;
+    }
+    if (req.query.search) {
+      const q = `%${req.query.search}%`;
+      where[Op.or] = [
+        { title: { [Op.like]: q } },
+        { excerpt: { [Op.like]: q } },
+        { content: { [Op.like]: q } },
+      ];
+    }
+    const posts = await BlogPost.findAll({ where, order: [["createdAt", "DESC"]] });
     res.json(posts);
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -14,7 +26,7 @@ export const list = async (req: Request, res: Response) => {
 export const getLatest = async (req: Request, res: Response) => {
   try {
     const post = await BlogPost.findOne({
-      where: { published: { [Op.ne]: false } },
+      where: { published: { [Op.ne]: false }, type: 'blog' },
       order: [["createdAt", "DESC"]],
     });
     res.json(post);

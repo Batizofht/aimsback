@@ -1,5 +1,7 @@
 import bodyParser from 'body-parser';
 import cors from 'cors';
+import dns from 'dns';
+dns.setDefaultResultOrder('ipv4first');
 import express, { Express } from 'express';
 import path from 'path';
 import fs from 'fs';

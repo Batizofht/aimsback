@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import ContactMessage from "../models/ContactMessage";
-import { sendContactReplyEmail, sendContactMessageEmail } from "../utils/email";
+import { sendContactReplyEmail, sendContactMessageEmail, sendContactAutoReply, sendContactTeamNotification } from "../utils/email";
 import { addSystemMessage } from "../utils/messages";
 
 export const submit = async (req: Request, res: Response) => {
@@ -11,6 +11,8 @@ export const submit = async (req: Request, res: Response) => {
     }
     const msg = await ContactMessage.create({ name, email, subject, body, isRead: false, replied: false });
     console.log(`New contact message from ${name} (${email}): ${subject}`);
+    sendContactAutoReply(email, name).catch(() => {});
+    sendContactTeamNotification(name, email, subject, body).catch(() => {});
     res.json({ success: true, id: msg.id });
   } catch (e: any) {
     res.status(500).json({ error: e.message });

@@ -48,4 +48,46 @@ router.post("/cover", upload.single("image"), (req: Request, res: Response) => {
   }
 });
 
+const fileStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(process.cwd(), "uploads", "documents");
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    const ext = path.extname(file.originalname);
+    cb(null, `document-${uniqueSuffix}${ext}`);
+  },
+});
+
+const fileUpload = multer({
+  storage: fileStorage,
+  limits: { fileSize: 50 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /pdf|doc|docx/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    if (extname) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only PDF and document files are allowed (pdf, doc, docx)"));
+    }
+  },
+});
+
+router.post("/file", fileUpload.single("file"), (req: Request, res: Response) => {
+  try {
+    if (!req.file) {
+      res.status(400).json({ error: "No file uploaded" });
+      return;
+    }
+    const fileUrl = `/uploads/documents/${req.file.filename}`;
+    res.json({ url: fileUrl });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 export default router;

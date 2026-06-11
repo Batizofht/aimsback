@@ -20,6 +20,8 @@ db.authenticate().then(async () => {
   } catch (error) {
     console.error("Database sync error:", error);
   }
+}).catch((error: any) => {
+  console.warn("Database not available - running without DB:", error.message);
 });
 
 const PORT = process.env.PORT || 5000;
