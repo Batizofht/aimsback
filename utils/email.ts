@@ -11,7 +11,7 @@ const transporter = nodemailer.createTransport({
   port: 587,
   secure: false,
   auth: {
-    user: "business@aimscapital.org",
+    user: "ourcontact@aimscapital.org",
     pass: "business12345@2025",
   },
   tls: { rejectUnauthorized: false },
@@ -53,7 +53,7 @@ function wrapHtml(bodyHtml: string) {
 export async function sendMembershipApprovedEmail(email: string, name: string) {
   try {
     await transporter.sendMail({
-      from: "AIMS Capital <business@aimscapital.org>",
+      from: "AIMS Capital <ourcontact@aimscapital.org>",
       to: email,
       subject: "AIMS Capital — Membership Approved",
       html: wrapHtml(`
@@ -84,7 +84,7 @@ export async function sendMembershipApprovedEmail(email: string, name: string) {
 export async function sendMembershipRejectedEmail(email: string, name: string, reason: string) {
   try {
     await transporter.sendMail({
-      from: "AIMS Capital <business@aimscapital.org>",
+      from: "AIMS Capital <ourcontact@aimscapital.org>",
       to: email,
       subject: "AIMS Capital — Membership Update",
       html: wrapHtml(`
@@ -112,7 +112,7 @@ export async function sendMembershipRejectedEmail(email: string, name: string, r
 export async function sendAppointmentScheduledEmail(email: string, name: string, title: string, date: string, time: string, platform: string) {
   try {
     await transporter.sendMail({
-      from: "AIMS Capital <business@aimscapital.org>",
+      from: "AIMS Capital <ourcontact@aimscapital.org>",
       to: email,
       subject: "AIMS Capital — Appointment Scheduled",
       html: wrapHtml(`
@@ -141,7 +141,7 @@ export async function sendAppointmentScheduledEmail(email: string, name: string,
 export async function sendAppointmentConfirmedEmail(email: string, name: string, title: string, date: string, time: string, platform: string) {
   try {
     await transporter.sendMail({
-      from: "AIMS Capital <business@aimscapital.org>",
+      from: "AIMS Capital <ourcontact@aimscapital.org>",
       to: email,
       subject: "AIMS Capital — Appointment Confirmed",
       html: wrapHtml(`
@@ -170,7 +170,7 @@ export async function sendAppointmentConfirmedEmail(email: string, name: string,
 export async function sendContactReplyEmail(email: string, name: string, reply: string) {
   try {
     await transporter.sendMail({
-      from: "AIMS Capital <business@aimscapital.org>",
+      from: "AIMS Capital <ourcontact@aimscapital.org>",
       to: email,
       subject: "AIMS Capital — Response to Your Inquiry",
       html: wrapHtml(`
@@ -194,7 +194,7 @@ export async function sendContactReplyEmail(email: string, name: string, reply: 
 export async function sendContactMessageEmail(email: string, name: string, message: string) {
   try {
     await transporter.sendMail({
-      from: "AIMS Capital <business@aimscapital.org>",
+      from: "AIMS Capital <ourcontact@aimscapital.org>",
       to: email,
       subject: "AIMS Capital — Message Regarding Your Inquiry",
       html: wrapHtml(`
@@ -217,7 +217,7 @@ export async function sendServiceRequestUpdateEmail(email: string, name: string,
   const color = status === "approved" ? "#0F2B4A" : "#d32f2f";
   try {
     await transporter.sendMail({
-      from: "AIMS Capital <business@aimscapital.org>",
+      from: "AIMS Capital <ourcontact@aimscapital.org>",
       to: email,
       subject: `AIMS Capital — Service Request ${label}`,
       html: wrapHtml(`
@@ -238,7 +238,7 @@ export async function sendServiceRequestUpdateEmail(email: string, name: string,
 export async function sendConsultationReplyEmail(email: string, name: string, replyMessage: string, date: string, time: string, platform: string) {
   try {
     await transporter.sendMail({
-      from: "AIMS Capital <business@aimscapital.org>",
+      from: "AIMS Capital <ourcontact@aimscapital.org>",
       to: email,
       subject: "AIMS Capital — Your Consultation Booking",
       html: wrapHtml(`
@@ -268,7 +268,7 @@ export async function sendConsultationReplyEmail(email: string, name: string, re
 export async function sendContactAutoReply(email: string, name: string) {
   try {
     await transporter.sendMail({
-      from: "AIMS Capital <business@aimscapital.org>",
+      from: "AIMS Capital <ourcontact@aimscapital.org>",
       to: email,
       subject: "AIMS Capital — We Received Your Message",
       html: wrapHtml(`
@@ -292,7 +292,7 @@ export async function sendContactAutoReply(email: string, name: string) {
 export async function sendConsultationAutoReply(email: string, name: string, date: string, time: string, platform: string) {
   try {
     await transporter.sendMail({
-      from: "AIMS Capital <business@aimscapital.org>",
+      from: "AIMS Capital <ourcontact@aimscapital.org>",
       to: email,
       subject: "AIMS Capital — Consultation Request Received",
       html: wrapHtml(`
@@ -318,8 +318,8 @@ export async function sendConsultationAutoReply(email: string, name: string, dat
 export async function sendContactTeamNotification(name: string, email: string, subject: string, body: string) {
   try {
     await transporter.sendMail({
-      from: "AIMS Capital <business@aimscapital.org>",
-      to: "business@aimscapital.org",
+      from: "AIMS Capital <ourcontact@aimscapital.org>",
+      to: "ourcontact@aimscapital.org",
       subject: "New Contact Form Submission",
       html: wrapHtml(`
         <p style="margin:0 0 20px;font-size:16px;color:#1a1a1a;line-height:1.6;">A new contact form has been submitted:</p>
@@ -346,8 +346,8 @@ export async function sendContactTeamNotification(name: string, email: string, s
 export async function sendConsultationTeamNotification(name: string, email: string, date: string, time: string, platform: string) {
   try {
     await transporter.sendMail({
-      from: "AIMS Capital <business@aimscapital.org>",
-      to: "business@aimscapital.org",
+      from: "AIMS Capital <ourcontact@aimscapital.org>",
+      to: "ourcontact@aimscapital.org",
       subject: "New Consultation Booking",
       html: wrapHtml(`
         <p style="margin:0 0 20px;font-size:16px;color:#1a1a1a;line-height:1.6;">A new consultation has been booked:</p>
@@ -372,7 +372,7 @@ export async function sendConsultationTeamNotification(name: string, email: stri
 export async function sendConsultationMessageEmail(email: string, name: string, message: string) {
   try {
     await transporter.sendMail({
-      from: "AIMS Capital <business@aimscapital.org>",
+      from: "AIMS Capital <ourcontact@aimscapital.org>",
       to: email,
       subject: "AIMS Capital — Message Regarding Your Consultation",
       html: wrapHtml(`
