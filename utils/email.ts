@@ -278,7 +278,7 @@ export async function sendContactAutoReply(email: string, name: string) {
         <p style="margin:0 0 8px;font-size:15px;color:#444;line-height:1.6;">If your matter is urgent, please contact us directly:</p>
         <div style="background:#f7fafc;border:1px solid #e8edf2;border-radius:12px;padding:20px;margin:24px 0;">
           <p style="margin:0 0 6px;font-size:14px;color:#444;"><strong>Phone:</strong> +250 788 309 268</p>
-          <p style="margin:0;font-size:14px;color:#444;"><strong>Office:</strong> KG 5 Ave, Plot 2, Kimihurura, Kigali</p>
+          <p style="margin:0;font-size:14px;color:#444;"><strong>Office:</strong> KG 5 Ave, Plot 2, Kimihurura, Kacyiru (near KBC), Kigali</p>
         </div>
       `),
     });

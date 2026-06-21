@@ -32,7 +32,7 @@ export const create = async (req: Request, res: Response) => {
 
 export const update = async (req: Request, res: Response) => {
   try {
-    const { id, role, isActive } = req.body;
+    const { id, role, isActive, f_name, l_name, password } = req.body;
     if (!id) return res.status(400).json({ error: "Admin ID required" });
 
     const admin = await Admin.findByPk(id);
@@ -41,6 +41,15 @@ export const update = async (req: Request, res: Response) => {
     const updateData: any = {};
     if (role) updateData.role = role;
     if (isActive !== undefined) updateData.isActive = isActive;
+    // Allow clearing names; only skip when the field wasn't sent at all.
+    if (f_name !== undefined) updateData.f_name = f_name;
+    if (l_name !== undefined) updateData.l_name = l_name;
+    if (password) {
+      if (String(password).length < 6) {
+        return res.status(400).json({ error: "Password must be at least 6 characters" });
+      }
+      updateData.passwordHash = await bcrypt.hash(password, 10);
+    }
 
     await admin.update(updateData);
     res.json({ id: admin.id, email: admin.email, f_name: admin.f_name, l_name: admin.l_name, role: admin.role, isActive: admin.isActive });

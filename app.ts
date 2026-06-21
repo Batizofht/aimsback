@@ -36,6 +36,7 @@ import ServiceRequestRoute from './routes/ServiceRequestRoute';
 import ContactRoute from './routes/ContactRoute';
 import ConsultationRoute from './routes/ConsultationRoute';
 import UploadRoute from './routes/UploadRoute';
+import ChatRoute from './routes/ChatRoute';
 
 app.use("/api", AuthRoute);
 app.use("/api/admins", AdminRoute);
@@ -47,6 +48,7 @@ app.use("/api/service-requests", ServiceRequestRoute);
 app.use("/api/contact", ContactRoute);
 app.use("/api/consultations", ConsultationRoute);
 app.use("/api/upload", UploadRoute);
+app.use("/api/chat", ChatRoute);
 
 app.get('/', (req, res) => {
   res.send('AIMS Capital API Server');

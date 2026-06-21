@@ -32,7 +32,7 @@ export const seedAdmin = async (req: Request, res: Response) => {
     const existing = await Admin.findOne({ where: { email: "admin@aimscapital.com" } });
     if (existing) return res.json({ message: "Admin already exists", id: existing.id });
 
-    const hash = await bcrypt.hash("admin123", 10);
+    const hash = await bcrypt.hash("  ", 10);
     const admin = await Admin.create({
       email: "admin@aimscapital.com",
       passwordHash: hash,
