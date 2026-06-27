@@ -65,6 +65,18 @@ export const update = async (req: Request, res: Response) => {
   }
 };
 
+export const getBySlug = async (req: Request, res: Response) => {
+  try {
+    const post = await BlogPost.findOne({
+      where: { slug: req.params.slug, published: { [Op.ne]: false } },
+    });
+    if (!post) return res.status(404).json({ error: "Not found" });
+    res.json(post);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+};
+
 export const remove = async (req: Request, res: Response) => {
   try {
     await BlogPost.destroy({ where: { id: req.body.id } });
