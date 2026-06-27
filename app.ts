@@ -13,17 +13,18 @@ app.use(bodyParser.json({ limit: '1000mb' }));
 app.use(bodyParser.urlencoded({ extended: true, limit: '1000mb' }));
 
 // Serve static files from uploads directory
-const uploadsPaths = [
-  path.join(process.cwd(), 'uploads'),
-  path.join(process.cwd(), 'server', 'uploads'),
-  path.join(__dirname, '../uploads'),
-]
+const uploadsPath = path.join(process.cwd(), 'uploads');
+const blogCoversPath = path.join(uploadsPath, 'blog-covers');
+const documentsPath = path.join(uploadsPath, 'documents');
 
-for (const uploadsPath of uploadsPaths) {
-  if (fs.existsSync(uploadsPath)) {
-    app.use('/uploads', express.static(uploadsPath));
+// Ensure upload directories exist so static serving works even if no files have been uploaded yet
+[uploadsPath, blogCoversPath, documentsPath].forEach((dir) => {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
   }
-}
+});
+
+app.use('/uploads', express.static(uploadsPath));
 
 // API routes
 import AuthRoute from './routes/AuthRoute';

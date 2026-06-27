@@ -5,15 +5,20 @@ import BlogPost from "../models/BlogPost";
 export const list = async (req: Request, res: Response) => {
   try {
     const where: any = {};
-    if (req.query.type) {
+    if (req.query.type === 'any') {
+      // no type filter — admin needs all types
+    } else if (req.query.type) {
       where.type = req.query.type;
+    }
+    if (req.query.published !== undefined) {
+      where.published = req.query.published === "true";
     }
     if (req.query.search) {
       const q = `%${req.query.search}%`;
       where[Op.or] = [
-        { title: { [Op.like]: q } },
-        { excerpt: { [Op.like]: q } },
-        { content: { [Op.like]: q } },
+        { title: { [Op.iLike]: q } },
+        { excerpt: { [Op.iLike]: q } },
+        { content: { [Op.iLike]: q } },
       ];
     }
     const posts = await BlogPost.findAll({ where, order: [["createdAt", "DESC"]] });

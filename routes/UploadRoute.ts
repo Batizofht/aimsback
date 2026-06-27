@@ -26,8 +26,7 @@ const upload = multer({
   fileFilter: (req, file, cb) => {
     const allowedTypes = /jpeg|jpg|png|webp|gif/;
     const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
-    if (extname && mimetype) {
+    if (extname) {
       cb(null, true);
     } else {
       cb(new Error("Only image files are allowed (jpeg, jpg, png, webp, gif)"));
@@ -35,17 +34,22 @@ const upload = multer({
   },
 });
 
-router.post("/cover", upload.single("image"), (req: Request, res: Response) => {
-  try {
-    if (!req.file) {
-      res.status(400).json({ error: "No file uploaded" });
-      return;
+router.post("/cover", (req: Request, res: Response) => {
+  upload.single("image")(req, res, (err: any) => {
+    if (err) {
+      return res.status(400).json({ error: err.message });
     }
-    const imageUrl = `/uploads/blog-covers/${req.file.filename}`;
-    res.json({ url: imageUrl });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
-  }
+    try {
+      if (!req.file) {
+        res.status(400).json({ error: "No file uploaded" });
+        return;
+      }
+      const imageUrl = `/uploads/blog-covers/${req.file.filename}`;
+      res.json({ url: imageUrl });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
 });
 
 const fileStorage = multer.diskStorage({
@@ -77,17 +81,22 @@ const fileUpload = multer({
   },
 });
 
-router.post("/file", fileUpload.single("file"), (req: Request, res: Response) => {
-  try {
-    if (!req.file) {
-      res.status(400).json({ error: "No file uploaded" });
-      return;
+router.post("/file", (req: Request, res: Response) => {
+  fileUpload.single("file")(req, res, (err: any) => {
+    if (err) {
+      return res.status(400).json({ error: err.message });
     }
-    const fileUrl = `/uploads/documents/${req.file.filename}`;
-    res.json({ url: fileUrl });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
-  }
+    try {
+      if (!req.file) {
+        res.status(400).json({ error: "No file uploaded" });
+        return;
+      }
+      const fileUrl = `/uploads/documents/${req.file.filename}`;
+      res.json({ url: fileUrl });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
 });
 
 export default router;
