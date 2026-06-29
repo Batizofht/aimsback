@@ -24,6 +24,10 @@ const documentsPath = path.join(uploadsPath, 'documents');
   }
 });
 
+// On-the-fly image optimizer (resize + WebP, cached) — must run BEFORE static.
+// Handles /uploads/**?w=… requests; everything else falls through to static.
+import imageResize from './middlewares/imageResize';
+app.use('/uploads', imageResize);
 app.use('/uploads', express.static(uploadsPath));
 
 // API routes
