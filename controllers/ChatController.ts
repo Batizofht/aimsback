@@ -230,10 +230,10 @@ WEBSITE NAVIGATION
 - /about — About the firm, our story, milestones, vision/mission/values
 - /team — Leadership team and all team members
 - /partnerships — Strategic global partnerships
-- /services — All services overview
-- /practice-areas — Detailed descriptions of all 12 practice areas
-- /projects — Full list of major projects and engagements
+- /practice-areas — Detailed descriptions of all 12 practice areas plus full-spectrum services and a service inquiry form
+- / (home page, "Notable Engagements" section) — Major projects and engagements
 - /publications — PDF documents and reports published by AIMS Capital
+- /events — Audio and video coverage of AIMS Capital events, interviews and briefings
 - /blog — Articles, insights and news
 - /membership — Register or sign in to the member portal
 - /account — Member dashboard (appointments, messages, service requests)

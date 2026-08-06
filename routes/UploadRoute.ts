@@ -99,4 +99,51 @@ router.post("/file", (req: Request, res: Response) => {
   });
 });
 
+const mediaStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(process.cwd(), "uploads", "media");
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    const ext = path.extname(file.originalname);
+    cb(null, `media-${uniqueSuffix}${ext}`);
+  },
+});
+
+const mediaUpload = multer({
+  storage: mediaStorage,
+  limits: { fileSize: 200 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /mp3|m4a|wav|ogg|aac|mp4|mov|m4v|webm|mpeg/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    if (extname) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only audio and video files are allowed (mp3, m4a, wav, ogg, aac, mp4, mov, webm)"));
+    }
+  },
+});
+
+router.post("/media", (req: Request, res: Response) => {
+  mediaUpload.single("media")(req, res, (err: any) => {
+    if (err) {
+      return res.status(400).json({ error: err.message });
+    }
+    try {
+      if (!req.file) {
+        res.status(400).json({ error: "No file uploaded" });
+        return;
+      }
+      const mediaUrl = `/uploads/media/${req.file.filename}`;
+      res.json({ url: mediaUrl });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+});
+
 export default router;
